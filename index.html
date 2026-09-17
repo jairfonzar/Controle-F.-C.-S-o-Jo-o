@@ -1859,6 +1859,7 @@ body.is-admin #btn-admin-auth {
 
 </style>
   <meta name="theme-color" content="#0f2b5c">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -1871,7 +1872,10 @@ body.is-admin #btn-admin-auth {
           <span id="club-crest-fallback" style="display:none;font-size:1.5rem;">⚽</span>
         </div>
         <div class="club-info">
-          <h1>Esporte Clube São João</h1>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <h1 style="margin:0;">Esporte Clube São João</h1>
+            <span id="cloud-sync-status-badge" style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:700;background:#fef9c3;color:#854d0e;border:1px solid #fde047;">🟡 Conectando à Nuvem...</span>
+          </div>
           <p>E.C.S.J. • Tietê / SP • Estatísticas & Gestão <span id="header-ano-temporada">2026</span></p>
         </div>
       </div>
@@ -22552,7 +22556,175 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
   setupEventListeners();
   renderApp();
+  initCloudSync();
 });
+
+// ==========================================================================
+// SUPABASE CLOUD REALTIME SYNC
+// ==========================================================================
+const SUPABASE_CONFIG = {
+  url: 'https://uwzgrobtjijdnwuiddbu.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3emdyb2J0amlqZG53dWlkZGJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2Njc4MDEsImV4cCI6MjEwNTI0MzgwMX0.Z9iEk8B15_FP9sEgCWdswN3mXbjFDlEjvUo_SMHgO2U',
+  rowId: 'sao_joao_2026'
+};
+
+let supabaseClient = null;
+let isSyncingToCloud = false;
+let isApplyingCloudUpdate = false;
+let lastCloudTimestamp = 0;
+
+function initCloudSync() {
+  try {
+    if (window.supabase && window.supabase.createClient) {
+      supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+    }
+  } catch (err) {
+    console.warn('Supabase JS SDK init failed:', err);
+  }
+
+  updateCloudSyncBadge('connecting', 'Conectando à Nuvem...');
+  pullFromCloud(true);
+
+  if (supabaseClient) {
+    try {
+      supabaseClient
+        .channel('public:app_state')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, (payload) => {
+          if (payload && payload.new && payload.new.id === SUPABASE_CONFIG.rowId) {
+            handleRemoteDataReceived(payload.new.payload, payload.new.updated_at);
+          }
+        })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            updateCloudSyncBadge('online', 'Nuvem Conectada (Tempo Real)');
+          }
+        });
+    } catch(e) {
+      console.warn('Realtime subscription error:', e);
+    }
+  }
+
+  // Backup polling every 8 seconds for cross-device synchronization
+  setInterval(() => {
+    pullFromCloud(false);
+  }, 8000);
+}
+
+async function pullFromCloud(isInitial = false) {
+  if (isSyncingToCloud) return;
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at`, {
+      headers: {
+        'apikey': SUPABASE_CONFIG.anonKey,
+        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+      }
+    });
+
+    if (res.status === 404) {
+      updateCloudSyncBadge('warning', 'Tabela não criada no Supabase');
+      return;
+    }
+
+    if (!res.ok) {
+      updateCloudSyncBadge('offline', 'Modo Offline (Salvo Local)');
+      return;
+    }
+
+    const data = await res.json();
+    if (data && data.length > 0 && data[0].payload) {
+      const remotePayload = data[0].payload;
+      const remoteUpdatedAt = data[0].updated_at ? new Date(data[0].updated_at).getTime() : 0;
+      handleRemoteDataReceived(remotePayload, remoteUpdatedAt);
+      updateCloudSyncBadge('online', 'Nuvem Sincronizada');
+    } else if (isInitial && appData) {
+      pushToCloud(appData);
+    }
+  } catch (err) {
+    console.warn('Pull from cloud error:', err);
+    updateCloudSyncBadge('offline', 'Modo Offline (Salvo Local)');
+  }
+}
+
+async function pushToCloud(dataToPush) {
+  if (isApplyingCloudUpdate || !dataToPush) return;
+  isSyncingToCloud = true;
+  updateCloudSyncBadge('syncing', 'Salvando na Nuvem...');
+  const nowStr = new Date().toISOString();
+  lastCloudTimestamp = new Date(nowStr).getTime();
+
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_CONFIG.anonKey,
+        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        id: SUPABASE_CONFIG.rowId,
+        payload: dataToPush,
+        updated_at: nowStr
+      })
+    });
+
+    if (res.status === 404) {
+      updateCloudSyncBadge('warning', 'Execute o SQL no Supabase');
+    } else if (res.ok) {
+      updateCloudSyncBadge('online', 'Salvo na Nuvem');
+      setTimeout(() => updateCloudSyncBadge('online', 'Nuvem Sincronizada'), 2000);
+    }
+  } catch (err) {
+    console.warn('Push to cloud error:', err);
+    updateCloudSyncBadge('offline', 'Salvo Localmente (Sem Nuvem)');
+  } finally {
+    isSyncingToCloud = false;
+  }
+}
+
+function handleRemoteDataReceived(remotePayload, remoteUpdatedAt) {
+  if (!remotePayload || !remotePayload.players) return;
+  if (remoteUpdatedAt && remoteUpdatedAt <= lastCloudTimestamp) return;
+
+  lastCloudTimestamp = remoteUpdatedAt || Date.now();
+  isApplyingCloudUpdate = true;
+  try {
+    appData = remotePayload;
+    localStorage.setItem('SAO_JOAO_APP_DATA_2026', JSON.stringify(appData));
+    recalculateAllStats();
+    renderApp();
+  } finally {
+    isApplyingCloudUpdate = false;
+  }
+}
+
+function updateCloudSyncBadge(status, text) {
+  const badge = document.getElementById('cloud-sync-status-badge');
+  if (!badge) return;
+  badge.style.display = 'inline-flex';
+  
+  if (status === 'online') {
+    badge.innerHTML = '🟢 ' + text;
+    badge.style.background = '#dcfce7';
+    badge.style.color = '#166534';
+    badge.style.border = '1px solid #86efac';
+  } else if (status === 'syncing' || status === 'connecting') {
+    badge.innerHTML = '🟡 ' + text;
+    badge.style.background = '#fef9c3';
+    badge.style.color = '#854d0e';
+    badge.style.border = '1px solid #fde047';
+  } else if (status === 'warning') {
+    badge.innerHTML = '⚠️ ' + text;
+    badge.style.background = '#fee2e2';
+    badge.style.color = '#991b1b';
+    badge.style.border = '1px solid #fca5a5';
+  } else {
+    badge.innerHTML = '⚪ ' + text;
+    badge.style.background = '#f1f5f9';
+    badge.style.color = '#475569';
+    badge.style.border = '1px solid #cbd5e1';
+  }
+}
 
 // ==========================================================================
 // 1. STATE INITIALIZATION & PERSISTENCE
@@ -22783,6 +22955,7 @@ function saveAppState(showToastMsg = true) {
     console.error('Erro ao salvar dados no localStorage:', err);
     showToast('Atenção: Limite de armazenamento local excedido.', 'error');
   }
+  pushToCloud(appData);
 }
 
 function resetToSpreadsheetData() {
