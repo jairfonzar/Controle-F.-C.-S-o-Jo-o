@@ -22604,10 +22604,10 @@ function initCloudSync() {
     }
   }
 
-  // Backup polling every 8 seconds for cross-device synchronization
+  // Polling every 5 seconds for cross-device synchronization
   setInterval(() => {
     pullFromCloud(false);
-  }, 8000);
+  }, 5000);
 }
 
 async function pullFromCloud(isInitial = false) {
@@ -22684,15 +22684,19 @@ async function pushToCloud(dataToPush) {
 
 function handleRemoteDataReceived(remotePayload, remoteUpdatedAt) {
   if (!remotePayload || !remotePayload.players) return;
-  if (remoteUpdatedAt && remoteUpdatedAt <= lastCloudTimestamp) return;
+  
+  const currentStr = JSON.stringify(appData);
+  const remoteStr = JSON.stringify(remotePayload);
+  if (currentStr === remoteStr) return;
 
   lastCloudTimestamp = remoteUpdatedAt || Date.now();
   isApplyingCloudUpdate = true;
   try {
     appData = remotePayload;
-    localStorage.setItem('SAO_JOAO_APP_DATA_2026', JSON.stringify(appData));
+    localStorage.setItem('SAO_JOAO_APP_DATA_2026', remoteStr);
     recalculateAllStats();
     renderApp();
+    console.log('Dados recebidos e atualizados da Nuvem!');
   } finally {
     isApplyingCloudUpdate = false;
   }
