@@ -23003,6 +23003,7 @@ function handleRemoteDataReceived(remotePayload, remoteUpdatedAt) {
   try {
     appData = remotePayload;
     localStorage.setItem('SAO_JOAO_APP_DATA_2026', remoteStr);
+    updateAutomaticDuesStatus();
     recalculateAllStats();
     renderApp();
     console.log('Dados recebidos e atualizados da Nuvem!');
@@ -23248,6 +23249,9 @@ function initAppState() {
     console.log('Logo init error:', e);
   }
 
+  // Ensure automatic monthly dues status (all months up to current month become 'pendente' once the month begins)
+  updateAutomaticDuesStatus();
+
   // Ensure stats integrity
   recalculateAllStats();
 
@@ -23255,6 +23259,64 @@ function initAppState() {
   updateAdminModeUI();
 
   window.appData = appData;
+}
+
+/**
+ * Atualiza automaticamente o status das mensalidades para todos os associados:
+ * - Assim que vira o mês (dia 1 em diante), o mês corrente e meses passados não quitados tornam-se 'pendente'
+ * - Meses futuros permanecem 'a_vencer'
+ * - Sócios isentos (goleiros) e mensalidades já pagas são preservados
+ */
+function updateAutomaticDuesStatus() {
+  if (!appData || !appData.players) return;
+  const now = new Date();
+  let currentMonthNum = now.getMonth() + 1; // 1 = Jan ... 9 = Set ... 12 = Dez
+  if (now.getFullYear() < 2026) {
+    currentMonthNum = 9; // Temporada 2026
+  }
+
+  let changesMade = false;
+  const cfgValor = Number(appData.configuracoes?.valorMensalidade) || 50;
+
+  appData.players.forEach(p => {
+    if (!p.mensalidades) p.mensalidades = {};
+    MESES.forEach((m, idx) => {
+      const mNum = idx + 1;
+      const curDue = p.mensalidades[m.key];
+      const curStatus = curDue ? curDue.status : 'a_vencer';
+
+      // Se for isento (goleiros isentos), não alterar
+      if (curStatus === 'isento') return;
+      // Se já estiver pago, não alterar
+      if (curStatus === 'pago') return;
+
+      if (mNum <= currentMonthNum) {
+        // Mês já virou / mês vigente ou passado -> torna-se pendente para cobrança e baixa imediata
+        if (curStatus === 'a_vencer' || !curDue) {
+          p.mensalidades[m.key] = {
+            status: 'pendente',
+            valor: Number(curDue?.valor || cfgValor),
+            dataPagamento: null
+          };
+          changesMade = true;
+        }
+      } else {
+        // Meses futuros permanecem a_vencer
+        if (!curDue) {
+          p.mensalidades[m.key] = {
+            status: 'a_vencer',
+            valor: cfgValor,
+            dataPagamento: null
+          };
+          changesMade = true;
+        }
+      }
+    });
+  });
+
+  if (changesMade) {
+    saveAppState(false);
+  }
 }
 
 function saveAppState(showToastMsg = true) {
@@ -26829,6 +26891,8 @@ function renderPendencias() {
   const container = document.getElementById('pendencias-container');
   if (!container) return;
 
+  updateAutomaticDuesStatus();
+
   const viewMode = currentViewModeDues;
 
   let totalMensalidadesRecebido = 0;
@@ -27904,6 +27968,8 @@ function openQuickSettlementCenterModal(playerId = null) {
     return;
   }
 
+  updateAutomaticDuesStatus();
+
   const modal = document.getElementById('modal-quick-settlement');
   if (!modal) return;
 
@@ -27916,7 +27982,7 @@ function openQuickSettlementCenterModal(playerId = null) {
       ${sortedPlayers.map(p => {
         let hasDebt = false;
         let pendingCount = 0;
-        if (p.mensalidades) {
+        if (p.ativo && p.mensalidades) {
           Object.values(p.mensalidades).forEach(m => {
             if (m.status === 'pendente') {
               hasDebt = true;
@@ -27963,6 +28029,8 @@ function handleQuickSettlePlayerSelected(playerId) {
     return;
   }
 
+  updateAutomaticDuesStatus();
+
   const player = appData.players.find(p => p.id === currentQuickSettlePlayerId);
   if (!player) return;
 
@@ -27972,11 +28040,18 @@ function handleQuickSettlePlayerSelected(playerId) {
   const valorCA = Number(cfg.valorMultaAmarelo) || 5;
   const valorCV = Number(cfg.valorMultaVermelho) || 15;
 
+  const now = new Date();
+  let currentMonthNum = now.getMonth() + 1;
+  if (now.getFullYear() < 2026) currentMonthNum = 9; // Temporada 2026
+
   // Monthly dues breakdown
   const pendingMonths = [];
+  const futureMonths = [];
   const allMonthsList = [];
-  MESES.forEach(m => {
-    const due = player.mensalidades?.[m.key] || { status: 'a_vencer', valor: valorMensalidade };
+
+  MESES.forEach((m, idx) => {
+    const mNum = idx + 1;
+    const due = player.mensalidades?.[m.key] || { status: (mNum <= currentMonthNum ? 'pendente' : 'a_vencer'), valor: valorMensalidade };
     allMonthsList.push({
       key: m.key,
       nome: m.nome,
@@ -27985,8 +28060,17 @@ function handleQuickSettlePlayerSelected(playerId) {
       valor: Number(due.valor || valorMensalidade),
       dataPagamento: due.dataPagamento
     });
+
     if (due.status === 'pendente') {
       pendingMonths.push({
+        key: m.key,
+        nome: m.nome,
+        abrev: m.abrev,
+        valor: Number(due.valor || valorMensalidade),
+        isCurrent: mNum === currentMonthNum
+      });
+    } else if (due.status === 'a_vencer' && mNum > currentMonthNum) {
+      futureMonths.push({
         key: m.key,
         nome: m.nome,
         abrev: m.abrev,
@@ -28011,7 +28095,7 @@ function handleQuickSettlePlayerSelected(playerId) {
         <div style="font-size:1.8rem;">🎉</div>
         <div>
           <strong style="color:#166534;font-size:0.95rem;display:block;">Sócio 100% em dia!</strong>
-          <span style="font-size:0.8rem;color:#15803d;">Não há mensalidades em atraso nem multas de cartões pendentes para este atleta.</span>
+          <span style="font-size:0.8rem;color:#15803d;">Não há mensalidades vencidas nem multas de cartões pendentes para este atleta.</span>
         </div>
       </div>
     `;
@@ -28032,14 +28116,17 @@ function handleQuickSettlePlayerSelected(playerId) {
       ${pendingMonths.length > 0 ? `
         <div style="margin-bottom:1rem;">
           <div style="font-size:0.78rem;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.4rem;display:flex;align-items:center;gap:4px;">
-            <span>📅</span> Mensalidades em Atraso (${pendingMonths.length} meses):
+            <span>📅</span> Mensalidades em Aberto (${pendingMonths.length} meses):
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:0.5rem;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:0.5rem;">
             ${pendingMonths.map(m => `
               <label class="quick-settle-item selected" id="qs-item-month-${m.key}" style="display:flex;align-items:center;gap:0.5rem;padding:0.6rem 0.75rem;margin:0;cursor:pointer;border-radius:6px;border:1.5px solid #3b82f6;background:#eff6ff;">
                 <input type="checkbox" class="qs-month-checkbox" data-month="${m.key}" data-value="${m.valor}" checked onchange="handleQuickSettleItemToggle(this, 'qs-item-month-${m.key}')" style="width:17px;height:17px;cursor:pointer;accent-color:#2563eb;">
                 <div style="flex:1;">
-                  <strong style="display:block;font-size:0.85rem;color:var(--text-main);">${m.nome}</strong>
+                  <div style="display:flex;align-items:center;gap:4px;">
+                    <strong style="font-size:0.85rem;color:var(--text-main);">${m.nome}</strong>
+                    ${m.isCurrent ? `<span class="badge badge-green" style="font-size:0.62rem;padding:1px 5px;">Mês Vigente</span>` : ''}
+                  </div>
                   <span style="font-size:0.72rem;color:#1d4ed8;font-weight:700;">R$ ${m.valor.toFixed(2)}</span>
                 </div>
               </label>
@@ -28048,7 +28135,7 @@ function handleQuickSettlePlayerSelected(playerId) {
         </div>
       ` : `
         <div style="margin-bottom:0.75rem;font-size:0.8rem;color:#15803d;font-weight:600;">
-          ✓ Mensalidades em dia
+          ✓ Mensalidades até o mês atual 100% em dia
         </div>
       `}
 
@@ -28088,6 +28175,29 @@ function handleQuickSettlePlayerSelected(playerId) {
           </div>
         </div>
       ` : ''}
+    `;
+  }
+
+  // Future Months Section (Antecipação / Adiantamento)
+  let futureMonthsHtml = '';
+  if (futureMonths.length > 0) {
+    futureMonthsHtml = `
+      <div style="margin-top:1rem;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:var(--radius-md);padding:0.75rem 1rem;">
+        <div style="font-size:0.78rem;font-weight:700;color:#1e40af;margin-bottom:0.4rem;display:flex;align-items:center;gap:4px;">
+          <span>➕</span> Adiantar Meses Futuros (Pagamento Antecipado):
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:0.5rem;">
+          ${futureMonths.map(m => `
+            <label class="quick-settle-item" id="qs-item-month-${m.key}" style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.65rem;margin:0;cursor:pointer;border-radius:6px;border:1px solid #cbd5e1;background:#ffffff;">
+              <input type="checkbox" class="qs-month-checkbox" data-month="${m.key}" data-value="${m.valor}" onchange="handleQuickSettleItemToggle(this, 'qs-item-month-${m.key}')" style="width:16px;height:16px;cursor:pointer;accent-color:#2563eb;">
+              <div style="flex:1;">
+                <strong style="display:block;font-size:0.82rem;color:var(--text-main);">${m.nome}</strong>
+                <span style="font-size:0.7rem;color:var(--text-muted);">R$ ${m.valor.toFixed(2)} (A Vencer)</span>
+              </div>
+            </label>
+          `).join('')}
+        </div>
+      </div>
     `;
   }
 
@@ -28136,6 +28246,9 @@ function handleQuickSettlePlayerSelected(playerId) {
     <!-- Debts & Granular Selection -->
     ${debtsHtml}
 
+    <!-- Future Months Section -->
+    ${futureMonthsHtml}
+
     <!-- Cash Flow Auto-Post Checkbox -->
     <div style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.6rem 0.85rem;margin-top:0.75rem;display:flex;align-items:center;justify-content:space-between;">
       <label style="display:inline-flex;align-items:center;gap:0.45rem;font-size:0.82rem;font-weight:700;color:var(--text-main);cursor:pointer;margin:0;">
@@ -28157,8 +28270,8 @@ function handleQuickSettleItemToggle(checkbox, containerId) {
       container.style.borderColor = '#3b82f6';
     } else {
       container.classList.remove('selected');
-      container.style.background = '#f8fafc';
-      container.style.borderColor = '#e2e8f0';
+      container.style.background = '#ffffff';
+      container.style.borderColor = '#cbd5e1';
     }
   }
   updateQuickSettleCalculatedTotal();
@@ -28191,8 +28304,8 @@ function quickSettleSelectAll(status) {
         container.style.borderColor = '#3b82f6';
       } else {
         container.classList.remove('selected');
-        container.style.background = '#f8fafc';
-        container.style.borderColor = '#e2e8f0';
+        container.style.background = '#ffffff';
+        container.style.borderColor = '#cbd5e1';
       }
     }
   });
@@ -28209,7 +28322,18 @@ function quickSettleSelectAll(status) {
 }
 
 function quickSettleSelectOnlyMonths() {
-  quickSettleSelectAll(true);
+  document.querySelectorAll('.qs-month-checkbox').forEach(chk => {
+    // Only select pending months (not future advance months)
+    const mKey = chk.getAttribute('data-month');
+    const container = document.getElementById(`qs-item-month-${mKey}`);
+    chk.checked = true;
+    if (container) {
+      container.classList.add('selected');
+      container.style.background = '#eff6ff';
+      container.style.borderColor = '#3b82f6';
+    }
+  });
+
   const elCA = document.getElementById('qs-card-val-ca');
   const elCV = document.getElementById('qs-card-val-cv');
   if (elCA) elCA.textContent = 0;
@@ -28218,7 +28342,17 @@ function quickSettleSelectOnlyMonths() {
 }
 
 function quickSettleSelectOnlyCards() {
-  quickSettleSelectAll(false);
+  document.querySelectorAll('.qs-month-checkbox').forEach(chk => {
+    chk.checked = false;
+    const mKey = chk.getAttribute('data-month');
+    const container = document.getElementById(`qs-item-month-${mKey}`);
+    if (container) {
+      container.classList.remove('selected');
+      container.style.background = '#ffffff';
+      container.style.borderColor = '#cbd5e1';
+    }
+  });
+
   const player = appData.players?.find(p => p.id === currentQuickSettlePlayerId);
   if (player && player.debitoCartoes) {
     const elCA = document.getElementById('qs-card-val-ca');
@@ -28368,11 +28502,17 @@ function buildQuickSettleWhatsAppMessage(player) {
   const pendingMonths = [];
   let monthlyDebt = 0;
 
-  MESES.forEach(m => {
-    const st = player.mensalidades && player.mensalidades[m.key] ? player.mensalidades[m.key].status : 'a_vencer';
+  const now = new Date();
+  let currentMonthNum = now.getMonth() + 1;
+  if (now.getFullYear() < 2026) currentMonthNum = 9;
+
+  MESES.forEach((m, idx) => {
+    const mNum = idx + 1;
+    const st = player.mensalidades && player.mensalidades[m.key] ? player.mensalidades[m.key].status : (mNum <= currentMonthNum ? 'pendente' : 'a_vencer');
     if (st === 'pendente') {
-      pendingMonths.push(m.nome);
-      monthlyDebt += (player.mensalidades[m.key]?.valor || cfg.valorMensalidade || 50);
+      const isCurrent = (mNum === currentMonthNum);
+      pendingMonths.push(isCurrent ? `${m.nome} (mês vigente)` : m.nome);
+      monthlyDebt += (player.mensalidades?.[m.key]?.valor || cfg.valorMensalidade || 50);
     }
   });
 
