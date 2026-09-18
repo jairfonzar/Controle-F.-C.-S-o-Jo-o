@@ -2034,6 +2034,61 @@ body.is-admin #btn-admin-auth {
   position: relative;
 }
 
+/* ==========================================================================
+   AUTOCOMPLETE SEARCH FOR QUICK SETTLEMENT MODAL
+   ========================================================================== */
+.quick-settle-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1.5px solid #3b82f6;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  z-index: 1050;
+  margin-top: 2px;
+}
+
+.quick-settle-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s ease;
+}
+
+.quick-settle-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.quick-settle-suggestion-item:hover,
+.quick-settle-suggestion-item.active {
+  background: #eff6ff;
+}
+
+.quick-settle-suggestion-item .player-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.quick-settle-suggestion-item .player-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.quick-settle-suggestion-item .player-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+
 
 
 
@@ -3336,14 +3391,49 @@ body.is-admin #btn-admin-auth {
       </div>
 
       <div class="modal-body" style="padding:1.25rem;overflow-y:auto;flex:1;">
-        <!-- Player Search & Selector -->
-        <div class="form-group" style="margin-bottom:1rem;">
-          <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:6px;">
-            🔍 Selecionar Sócio / Jogador:
+        <!-- Player Live Autocomplete Search -->
+        <div class="form-group" style="position:relative;margin-bottom:0.75rem;">
+          <label style="font-weight:700;font-size:0.85rem;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span>🔍 Digite o nome, apelido ou número do sócio:</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Sugestão instantânea</span>
           </label>
-          <div style="display:flex;gap:0.5rem;">
-            <select class="form-control" id="quick-settle-player-select" style="font-size:0.95rem;font-weight:700;color:var(--primary-navy);" onchange="handleQuickSettlePlayerSelected(this.value)">
-              <option value="">-- Escolha um Sócio na lista --</option>
+          <div style="position:relative;display:flex;align-items:center;">
+            <span style="position:absolute;left:12px;font-size:1.1rem;color:#94a3b8;pointer-events:none;">🔍</span>
+            <input type="text" id="quick-settle-search-input" class="form-control" 
+                   placeholder="Comece a digitar o nome (ex: Pelé, João, #10)..." 
+                   style="padding-left:38px;padding-right:34px;font-size:0.95rem;font-weight:600;height:44px;border:2px solid #3b82f6;border-radius:var(--radius-md);box-shadow:0 2px 6px rgba(59,130,246,0.15);"
+                   autocomplete="off"
+                   oninput="handleQuickSettleSearchInput(this.value)"
+                   onkeydown="handleQuickSettleSearchKeydown(event)"
+                   onfocus="handleQuickSettleSearchFocus()">
+            <button type="button" id="quick-settle-clear-search-btn" onclick="clearQuickSettleSearch()" 
+                    style="position:absolute;right:8px;background:none;border:none;color:#94a3b8;font-size:1.1rem;cursor:pointer;display:none;padding:4px;" title="Limpar busca">
+              ✕
+            </button>
+          </div>
+
+          <!-- Live Autocomplete Suggestions Dropdown -->
+          <div id="quick-settle-suggestions" class="quick-settle-dropdown" style="display:none;"></div>
+        </div>
+
+        <!-- Quick Filter Chips & List Dropdown Option -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem;background:#f8fafc;padding:0.5rem 0.75rem;border-radius:var(--radius-sm);border:1px solid #e2e8f0;">
+          <div style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap;">
+            <span style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Filtrar:</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="qs-chip-debt" style="font-size:0.72rem;padding:2px 8px;border-radius:12px;" onclick="quickSettleFilterChip('debt')">
+              ⚠️ Com Pendências
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="qs-chip-all" style="font-size:0.72rem;padding:2px 8px;border-radius:12px;" onclick="quickSettleFilterChip('all')">
+              👥 Todos Ativos
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="qs-chip-gk" style="font-size:0.72rem;padding:2px 8px;border-radius:12px;" onclick="quickSettleFilterChip('goleiro')">
+              🧤 Goleiros
+            </button>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.3rem;">
+            <span style="font-size:0.72rem;color:var(--text-muted);">ou selecione:</span>
+            <select class="form-control" id="quick-settle-player-select" style="font-size:0.78rem;padding:2px 6px;max-width:160px;" onchange="selectQuickSettlePlayer(this.value)">
+              <option value="">-- Lista Alfabética --</option>
             </select>
           </div>
         </div>
@@ -27958,9 +28048,11 @@ function settlePlayerAllDebts(playerId) {
 }
 
 // ==========================================================================
-// CENTRAL DE CONSULTA & BAIXA RÁPIDA DE SÓCIOS
+// CENTRAL DE CONSULTA & BAIXA RÁPIDA DE SÓCIOS (COM AUTOCOMPLETE INSTANTÂNEO)
 // ==========================================================================
 let currentQuickSettlePlayerId = null;
+let currentQuickSettleFilterChip = 'all'; // 'all', 'debt', 'goleiro'
+let quickSettleActiveSuggestionIndex = -1;
 
 function openQuickSettlementCenterModal(playerId = null) {
   if (!isAdminSession) {
@@ -27973,42 +28065,318 @@ function openQuickSettlementCenterModal(playerId = null) {
   const modal = document.getElementById('modal-quick-settlement');
   if (!modal) return;
 
+  // Populate fallback select dropdown
   const selectEl = document.getElementById('quick-settle-player-select');
   if (selectEl) {
-    const sortedPlayers = [...appData.players].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    const activePlayers = (appData.players || []).filter(p => p.ativo);
+    const sortedPlayers = [...activePlayers].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
     
     selectEl.innerHTML = `
-      <option value="">-- Selecione o Associado / Sócio --</option>
+      <option value="">-- Lista Alfabética --</option>
       ${sortedPlayers.map(p => {
-        let hasDebt = false;
-        let pendingCount = 0;
-        if (p.ativo && p.mensalidades) {
-          Object.values(p.mensalidades).forEach(m => {
-            if (m.status === 'pendente') {
-              hasDebt = true;
-              pendingCount++;
-            }
-          });
-        }
-        if (p.debitoCartoes && p.debitoCartoes.status === 'pendente' && p.debitoCartoes.valorTotal > 0) {
-          hasDebt = true;
-        }
+        const debtInfo = getPlayerQuickDebtSummary(p);
+        const debtBadge = debtInfo.hasDebt ? ` ⚠️ (R$ ${debtInfo.totalDebt.toFixed(0)})` : ' ✓ (Em dia)';
         const displayName = getPlayerDisplayName(p);
-        const debtBadge = hasDebt ? ` ⚠️ (Débito)` : ' ✓ (Em dia)';
         return `<option value="${p.id}">#${p.seq || p.id} - ${escapeHtml(displayName)}${debtBadge}</option>`;
       }).join('')}
     `;
+  }
 
-    if (playerId) {
-      selectEl.value = playerId;
-      handleQuickSettlePlayerSelected(playerId);
-    } else {
-      selectEl.value = '';
-      handleQuickSettlePlayerSelected(null);
-    }
+  // Reset filter chip buttons
+  setQuickSettleChipActiveUI('all');
+
+  const searchInput = document.getElementById('quick-settle-search-input');
+  const clearBtn = document.getElementById('quick-settle-clear-search-btn');
+
+  if (playerId) {
+    selectQuickSettlePlayer(playerId);
+  } else {
+    if (searchInput) searchInput.value = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+    handleQuickSettlePlayerSelected(null);
   }
 
   modal.classList.add('active');
+
+  // Auto focus on the search input
+  setTimeout(() => {
+    if (searchInput) searchInput.focus();
+  }, 100);
+}
+
+function getPlayerQuickDebtSummary(p) {
+  const cfg = appData.configuracoes || {};
+  const valorMensalidade = Number(cfg.valorMensalidade) || 50;
+  const now = new Date();
+  let currentMonthNum = now.getMonth() + 1;
+  if (now.getFullYear() < 2026) currentMonthNum = 9;
+
+  let monthlyDebt = 0;
+  let pendingMonthsCount = 0;
+  if (p.ativo && p.mensalidades) {
+    MESES.forEach((m, idx) => {
+      const mNum = idx + 1;
+      const due = p.mensalidades[m.key];
+      if (due && due.status === 'pendente') {
+        monthlyDebt += Number(due.valor || valorMensalidade);
+        pendingMonthsCount++;
+      }
+    });
+  }
+
+  let cardDebt = 0;
+  if (p.debitoCartoes && p.debitoCartoes.status === 'pendente' && p.debitoCartoes.valorTotal > 0) {
+    cardDebt = Number(p.debitoCartoes.valorTotal);
+  }
+
+  const totalDebt = monthlyDebt + cardDebt;
+  return {
+    hasDebt: totalDebt > 0,
+    totalDebt: totalDebt,
+    monthlyDebt: monthlyDebt,
+    cardDebt: cardDebt,
+    pendingMonthsCount: pendingMonthsCount
+  };
+}
+
+function normalizeSearchStr(str) {
+  if (!str) return '';
+  return String(str).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+function handleQuickSettleSearchInput(val) {
+  const clearBtn = document.getElementById('quick-settle-clear-search-btn');
+  if (clearBtn) {
+    clearBtn.style.display = val && val.trim().length > 0 ? 'block' : 'none';
+  }
+  showQuickSettleSuggestions(val);
+}
+
+function handleQuickSettleSearchFocus() {
+  const searchInput = document.getElementById('quick-settle-search-input');
+  showQuickSettleSuggestions(searchInput ? searchInput.value : '');
+}
+
+function handleQuickSettleSearchKeydown(e) {
+  const dropdown = document.getElementById('quick-settle-suggestions');
+  if (!dropdown || dropdown.style.display === 'none') return;
+
+  const items = dropdown.querySelectorAll('.quick-settle-suggestion-item');
+  if (items.length === 0) return;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    quickSettleActiveSuggestionIndex = (quickSettleActiveSuggestionIndex + 1) % items.length;
+    updateQuickSettleActiveSuggestionUI(items);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    quickSettleActiveSuggestionIndex = (quickSettleActiveSuggestionIndex - 1 + items.length) % items.length;
+    updateQuickSettleActiveSuggestionUI(items);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (quickSettleActiveSuggestionIndex >= 0 && quickSettleActiveSuggestionIndex < items.length) {
+      items[quickSettleActiveSuggestionIndex].click();
+    } else if (items.length > 0) {
+      items[0].click();
+    }
+  } else if (e.key === 'Escape') {
+    closeQuickSettleSuggestions();
+  }
+}
+
+function updateQuickSettleActiveSuggestionUI(items) {
+  items.forEach((it, idx) => {
+    if (idx === quickSettleActiveSuggestionIndex) {
+      it.classList.add('active');
+      it.scrollIntoView({ block: 'nearest' });
+    } else {
+      it.classList.remove('active');
+    }
+  });
+}
+
+function showQuickSettleSuggestions(query = '', filterMode = null) {
+  const dropdown = document.getElementById('quick-settle-suggestions');
+  if (!dropdown) return;
+
+  if (filterMode) currentQuickSettleFilterChip = filterMode;
+
+  const q = normalizeSearchStr(query);
+  const activePlayers = (appData.players || []).filter(p => p.ativo);
+
+  let filtered = activePlayers.filter(p => {
+    const debtInfo = getPlayerQuickDebtSummary(p);
+
+    // Filter chip check
+    if (currentQuickSettleFilterChip === 'debt' && !debtInfo.hasDebt) return false;
+    if (currentQuickSettleFilterChip === 'goleiro') {
+      const pos = (p.posicao || '').toLowerCase();
+      if (!pos.includes('goleiro')) return false;
+    }
+
+    // Query string check
+    if (!q) return true;
+
+    const normNome = normalizeSearchStr(p.nome);
+    const normApelido = normalizeSearchStr(p.apelido);
+    const normPos = normalizeSearchStr(p.posicao);
+    const seqStr = String(p.seq || p.id);
+
+    return normNome.includes(q) || normApelido.includes(q) || normPos.includes(q) || seqStr === q || (`#${seqStr}`).includes(q);
+  });
+
+  // Sort: Debtors first if searching generally, then alphabetical
+  filtered.sort((a, b) => {
+    const debtA = getPlayerQuickDebtSummary(a);
+    const debtB = getPlayerQuickDebtSummary(b);
+    if (debtA.hasDebt !== debtB.hasDebt) {
+      return debtA.hasDebt ? -1 : 1;
+    }
+    return (a.nome || '').localeCompare(b.nome || '');
+  });
+
+  quickSettleActiveSuggestionIndex = -1;
+
+  if (filtered.length === 0) {
+    dropdown.innerHTML = `
+      <div style="padding:1rem;text-align:center;color:var(--text-muted);font-size:0.85rem;">
+        <span>🔍 Nenhum sócio ativo encontrado para "<strong>${escapeHtml(query)}</strong>"</span>
+      </div>
+    `;
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  dropdown.innerHTML = filtered.slice(0, 15).map(p => {
+    const debtInfo = getPlayerQuickDebtSummary(p);
+    const displayName = getPlayerDisplayName(p);
+    const parsed = parsePlayerPositions(p.posicao);
+
+    let debtBadgeHtml = '';
+    if (debtInfo.hasDebt) {
+      const parts = [];
+      if (debtInfo.monthlyDebt > 0) parts.push(`R$ ${debtInfo.monthlyDebt.toFixed(0)} mens.`);
+      if (debtInfo.cardDebt > 0) parts.push(`R$ ${debtInfo.cardDebt.toFixed(0)} cartões`);
+      debtBadgeHtml = `
+        <span style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:3px 8px;border-radius:12px;font-size:0.75rem;font-weight:800;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;">
+          ⚠️ R$ ${debtInfo.totalDebt.toFixed(2)}
+        </span>
+      `;
+    } else {
+      debtBadgeHtml = `
+        <span style="background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:3px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;">
+          ✓ Em dia
+        </span>
+      `;
+    }
+
+    return `
+      <div class="quick-settle-suggestion-item" onclick="selectQuickSettlePlayer(${p.id})">
+        <div class="player-info">
+          ${renderPlayerAvatarHtml(p, 'player-avatar-sm')}
+          <div>
+            <div class="player-name">
+              #${p.seq || p.id} - ${escapeHtml(displayName)}
+              ${p.apelido && p.apelido !== displayName ? `<span style="font-size:0.78rem;color:var(--text-muted);font-weight:500;">(${escapeHtml(p.apelido)})</span>` : ''}
+            </div>
+            <div class="player-meta">
+              <span class="badge badge-pos" style="font-size:0.65rem;padding:1px 5px;">${escapeHtml(parsed.pos1 || p.posicao || 'Jogador')}</span>
+              ${p.telefone ? ` • 📱 ${escapeHtml(p.telefone)}` : ''}
+            </div>
+          </div>
+        </div>
+        <div>
+          ${debtBadgeHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  dropdown.style.display = 'block';
+}
+
+function closeQuickSettleSuggestions() {
+  const dropdown = document.getElementById('quick-settle-suggestions');
+  if (dropdown) dropdown.style.display = 'none';
+  quickSettleActiveSuggestionIndex = -1;
+}
+
+// Close quick settle autocomplete dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const searchInput = document.getElementById('quick-settle-search-input');
+  const dropdown = document.getElementById('quick-settle-suggestions');
+  if (dropdown && dropdown.style.display === 'block') {
+    if (searchInput && !searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+      closeQuickSettleSuggestions();
+    }
+  }
+});
+
+function selectQuickSettlePlayer(playerId) {
+  if (!playerId) {
+    clearQuickSettleSearch();
+    return;
+  }
+  const p = appData.players.find(x => x.id === Number(playerId));
+  if (!p) return;
+
+  const searchInput = document.getElementById('quick-settle-search-input');
+  if (searchInput) {
+    searchInput.value = `#${p.seq || p.id} - ${getPlayerDisplayName(p)}`;
+  }
+  const clearBtn = document.getElementById('quick-settle-clear-search-btn');
+  if (clearBtn) clearBtn.style.display = 'block';
+
+  const selectEl = document.getElementById('quick-settle-player-select');
+  if (selectEl) selectEl.value = p.id;
+
+  closeQuickSettleSuggestions();
+  handleQuickSettlePlayerSelected(p.id);
+}
+
+function clearQuickSettleSearch() {
+  const searchInput = document.getElementById('quick-settle-search-input');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.focus();
+  }
+  const clearBtn = document.getElementById('quick-settle-clear-search-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  const selectEl = document.getElementById('quick-settle-player-select');
+  if (selectEl) selectEl.value = '';
+
+  handleQuickSettlePlayerSelected(null);
+  showQuickSettleSuggestions('');
+}
+
+function quickSettleFilterChip(type) {
+  currentQuickSettleFilterChip = type;
+  setQuickSettleChipActiveUI(type);
+
+  const searchInput = document.getElementById('quick-settle-search-input');
+  const q = searchInput ? searchInput.value : '';
+  showQuickSettleSuggestions(q, type);
+  if (searchInput) searchInput.focus();
+}
+
+function setQuickSettleChipActiveUI(type) {
+  const debtChip = document.getElementById('qs-chip-debt');
+  const allChip = document.getElementById('qs-chip-all');
+  const gkChip = document.getElementById('qs-chip-gk');
+
+  if (debtChip) {
+    debtChip.className = type === 'debt' ? 'btn btn-danger btn-sm' : 'btn btn-secondary btn-sm';
+    debtChip.style.fontWeight = type === 'debt' ? '800' : '600';
+  }
+  if (allChip) {
+    allChip.className = type === 'all' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+    allChip.style.fontWeight = type === 'all' ? '800' : '600';
+  }
+  if (gkChip) {
+    gkChip.className = type === 'goleiro' ? 'btn btn-gold btn-sm' : 'btn btn-secondary btn-sm';
+    gkChip.style.fontWeight = type === 'goleiro' ? '800' : '600';
+  }
 }
 
 function handleQuickSettlePlayerSelected(playerId) {
