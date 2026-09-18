@@ -27824,12 +27824,7 @@ function sendWhatsAppConsolidatedBilling(playerId) {
     `Favorecido: ${cfg.titularPix || cfg.nomeClube}\n\n` +
     `Por favor, nos envie o comprovante assim que realizar o pagamento. Muito obrigado e bom jogo! ⚽`;
 
-  const cleanPhone = getCleanPhoneForWhatsApp(player.telefone);
-  const url = cleanPhone
-    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
-    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-
-  window.open(url, '_blank');
+  openWhatsAppSmart(player.telefone, msg, true);
 }
 
 function sendWhatsAppCardBilling(playerId) {
@@ -27851,12 +27846,7 @@ function sendWhatsAppCardBilling(playerId) {
     `Favorecido: ${cfg.titularPix || cfg.nomeClube}\n\n` +
     `Favor enviar o comprovante após o pagamento. Valeu! ⚽`;
 
-  const cleanPhone = getCleanPhoneForWhatsApp(player.telefone);
-  const url = cleanPhone
-    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
-    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-
-  window.open(url, '_blank');
+  openWhatsAppSmart(player.telefone, msg, true);
 }
 
 let currentPartialCardPlayerId = null;
@@ -28601,11 +28591,14 @@ function handleQuickSettlePlayerSelected(playerId) {
           <span style="font-size:0.75rem;color:#15803d;">Extrato formatado com valores, meses e chave PIX do clube</span>
         </div>
       </div>
-      <div style="display:flex;gap:0.4rem;">
-        <button type="button" class="btn btn-whatsapp btn-sm" onclick="sendQuickSettleWhatsApp(${player.id})">
-          💬 Abrir no WhatsApp
+      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+        <button type="button" class="btn btn-whatsapp btn-sm" onclick="sendQuickSettleWhatsApp(${player.id}, true)" title="Abrir direto no WhatsApp Pessoal (com.whatsapp)">
+          💬 WhatsApp (Pessoal)
         </button>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="copyQuickSettleWhatsApp(${player.id})">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="sendQuickSettleWhatsApp(${player.id}, false)" title="Abrir no WhatsApp Web ou padrão do navegador">
+          🌐 Web / Padrão
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="copyQuickSettleWhatsApp(${player.id})" title="Copiar texto formatado para a área de transferência">
           📋 Copiar Texto
         </button>
       </div>
@@ -28922,17 +28915,47 @@ function buildQuickSettleWhatsAppMessage(player) {
     `Por favor, nos envie o comprovante assim que realizar o pagamento. Muito obrigado e bom jogo! ⚽`;
 }
 
-function sendQuickSettleWhatsApp(playerId) {
+function openWhatsAppSmart(phone, messageText, preferPersonal = true) {
+  const cleanPhone = getCleanPhoneForWhatsApp(phone);
+  const encodedMsg = encodeURIComponent(messageText);
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isAndroid && preferPersonal) {
+    // Força o aplicativo WhatsApp Pessoal padrão (pacote com.whatsapp) no Android,
+    // evitando que o Android direcione para o WhatsApp Business caso este esteja como padrão.
+    const targetPhone = cleanPhone || '';
+    const intentUrl = targetPhone 
+      ? `intent://send?phone=${targetPhone}&text=${encodedMsg}#Intent;package=com.whatsapp;scheme=whatsapp;end;`
+      : `intent://send?text=${encodedMsg}#Intent;package=com.whatsapp;scheme=whatsapp;end;`;
+    
+    // Tenta abrir o intent direto do pacote com.whatsapp
+    window.location.href = intentUrl;
+    return;
+  }
+
+  if (isIOS && preferPersonal) {
+    const uri = cleanPhone 
+      ? `whatsapp://send?phone=${cleanPhone}&text=${encodedMsg}`
+      : `whatsapp://send?text=${encodedMsg}`;
+    window.location.href = uri;
+    return;
+  }
+
+  // Desktop / PC ou quando clicado em Web/Padrão
+  const webUrl = cleanPhone
+    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`
+    : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+
+  window.open(webUrl, '_blank');
+}
+
+function sendQuickSettleWhatsApp(playerId, preferPersonal = true) {
   const player = appData.players?.find(p => p.id === playerId);
   if (!player) return;
 
   const msg = buildQuickSettleWhatsAppMessage(player);
-  const cleanPhone = getCleanPhoneForWhatsApp(player.telefone);
-  const url = cleanPhone
-    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
-    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-
-  window.open(url, '_blank');
+  openWhatsAppSmart(player.telefone, msg, preferPersonal);
 }
 
 function copyQuickSettleWhatsApp(playerId) {
