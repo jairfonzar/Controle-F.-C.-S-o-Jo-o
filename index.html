@@ -3344,25 +3344,22 @@ body.is-admin #btn-admin-auth {
     </div>
   </div>
 
-  <!-- Modal: Acesso da Diretoria (Senha) -->
+  <!-- Modal: Acesso da Diretoria / Master (Senha) -->
   <div class="modal-overlay" id="modal-admin-login">
     <div class="modal-box" style="max-width:420px;width:92%;">
       <div class="modal-header">
         <div>
           <h3 style="margin-bottom:2px;color:var(--primary-navy);display:flex;align-items:center;gap:0.4rem;">
-            🔒 Acesso da Diretoria
+            🔒 Acesso Administrativo
           </h3>
-          <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Digite a senha para desbloquear abas financeiras e alterações</p>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Digite a senha da Diretoria ou a Senha Master</p>
         </div>
         <button class="modal-close" onclick="closeModal('modal-admin-login')">&times;</button>
       </div>
       <div class="modal-body" style="padding:1.25rem;">
         <div class="form-group">
-          <label style="font-weight:700;font-size:0.85rem;">Senha de Administrador:</label>
+          <label style="font-weight:700;font-size:0.85rem;">Senha de Acesso:</label>
           <input type="password" class="form-control" id="admin-password-input" placeholder="Digite a senha..." onkeydown="if(event.key==='Enter') submitAdminPassword()">
-          <small style="color:var(--text-muted);font-size:0.75rem;margin-top:5px;display:block;">
-            * Senha padrão inicial: <strong>1926</strong> (ano de fundação do clube).
-          </small>
         </div>
         <div id="admin-login-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:0.6rem 0.8rem;border-radius:var(--radius-sm);font-size:0.8rem;font-weight:600;margin-top:0.75rem;">
           ⚠️ Senha incorreta. Verifique e tente novamente.
@@ -3371,6 +3368,37 @@ body.is-admin #btn-admin-auth {
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('modal-admin-login')">Cancelar</button>
         <button class="btn btn-primary" onclick="submitAdminPassword()">Desbloquear Acesso</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Elevação para Master Admin (Controle de Qualidade) -->
+  <div class="modal-overlay" id="modal-master-login">
+    <div class="modal-box" style="max-width:430px;width:92%;">
+      <div class="modal-header" style="background:linear-gradient(135deg, #1e1b4b, #312e81);color:#ffffff;border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
+        <div>
+          <h3 style="margin-bottom:2px;color:#ffffff;display:flex;align-items:center;gap:0.4rem;font-size:1.1rem;">
+            👑 Acesso Master (Controle de Qualidade)
+          </h3>
+          <p style="font-size:0.78rem;color:#c7d2fe;margin:0;">O Controle de Qualidade e níveis técnicos são restritos</p>
+        </div>
+        <button class="modal-close" style="color:#ffffff;" onclick="closeModal('modal-master-login')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        <p style="font-size:0.85rem;color:var(--text-main);margin-bottom:1rem;line-height:1.4;">
+          A Diretoria intermediária não tem acesso a esta área. Digite a <strong>Senha Master</strong> para desbloquear a edição de estrelas e notas técnicas dos atletas.
+        </p>
+        <div class="form-group">
+          <label style="font-weight:700;font-size:0.85rem;">Senha Master (Acesso Total):</label>
+          <input type="password" class="form-control" id="master-password-input" placeholder="Digite a Senha Master..." onkeydown="if(event.key==='Enter') submitMasterPassword()">
+        </div>
+        <div id="master-login-error" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:0.6rem 0.8rem;border-radius:var(--radius-sm);font-size:0.8rem;font-weight:600;margin-top:0.75rem;">
+          ⚠️ Senha Master incorreta. Verifique e tente novamente.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-master-login')">Cancelar</button>
+        <button class="btn btn-primary" style="background:#4338ca;border-color:#3730a3;" onclick="submitMasterPassword()">Liberar Controle de Qualidade</button>
       </div>
     </div>
   </div>
@@ -22484,7 +22512,9 @@ window.INITIAL_SAO_JOAO_DATA = {
     "valorMultaVermelho": 15,
     "chavePix": "32755656808",
     "titularPix": "JAIR CARLOS FONZAR FILHO",
-    "adminPassword": "986700"
+    "adminPassword": "986700",
+    "directorPassword": "986700",
+    "masterPassword": "642200"
   },
   "rounds": [
     {
@@ -22931,6 +22961,9 @@ let currentSort = { col: 'gols', asc: false };
 let currentRoundNum = 34; // default to last recorded round
 let currentViewModeDues = 'matriz'; // 'matriz' or 'inadimplentes'
 let isAdminSession = false;
+let isMasterAdmin = false;
+let adminAuthLevel = 'visitor'; // 'visitor', 'director', 'master'
+let pendingMasterAction = null;
 const ADMIN_RESTRICTED_TABS = ['rodadas', 'socios', 'pendencias', 'caixa', 'configuracoes'];
 
 // Month names and abbreviations
@@ -23305,18 +23338,33 @@ function initAppState() {
     }
   }
 
-  // Ensure default Admin Password exists
+  // Ensure Director and Master Passwords exist
   if (appData) {
     if (!appData.configuracoes) appData.configuracoes = {};
-    if (!appData.configuracoes.adminPassword) {
-      appData.configuracoes.adminPassword = '1926';
+    if (!appData.configuracoes.directorPassword) {
+      appData.configuracoes.directorPassword = appData.configuracoes.adminPassword || '986700';
     }
+    if (!appData.configuracoes.masterPassword) {
+      appData.configuracoes.masterPassword = '642200';
+    }
+    appData.configuracoes.adminPassword = appData.configuracoes.directorPassword;
   }
 
   // Restore Admin Session from current browser session
   try {
-    if (sessionStorage.getItem('SAO_JOAO_ADMIN_LOGGED') === 'true') {
+    const savedLevel = sessionStorage.getItem('SAO_JOAO_ADMIN_LEVEL');
+    if (savedLevel === 'master') {
+      adminAuthLevel = 'master';
       isAdminSession = true;
+      isMasterAdmin = true;
+    } else if (savedLevel === 'director' || sessionStorage.getItem('SAO_JOAO_ADMIN_LOGGED') === 'true') {
+      adminAuthLevel = 'director';
+      isAdminSession = true;
+      isMasterAdmin = false;
+    } else {
+      adminAuthLevel = 'visitor';
+      isAdminSession = false;
+      isMasterAdmin = false;
     }
   } catch(e) {}
 
@@ -23596,10 +23644,17 @@ function switchTab(tabId) {
 
 function updateAdminModeUI() {
   document.body.classList.toggle('is-admin', isAdminSession);
+  document.body.classList.toggle('is-master', isMasterAdmin);
 
   const authBtn = document.getElementById('btn-admin-auth');
   if (authBtn) {
-    if (isAdminSession) {
+    if (isMasterAdmin) {
+      authBtn.innerHTML = '👑 Master Admin (Sair)';
+      authBtn.style.background = '#4338ca';
+      authBtn.style.color = '#ffffff';
+      authBtn.style.borderColor = '#3730a3';
+      authBtn.title = 'Acesso Master Total ativo. Clique para sair e voltar ao Modo Sócio';
+    } else if (isAdminSession) {
       authBtn.innerHTML = '🔓 Diretoria Conectada (Sair)';
       authBtn.style.background = '#15803d';
       authBtn.style.color = '#ffffff';
@@ -23628,7 +23683,8 @@ function updateAdminModeUI() {
 
 function handleAdminAuthButtonClick() {
   if (isAdminSession) {
-    if (confirm('Deseja sair do Modo Diretoria e retornar para a visualização pública dos sócios?')) {
+    const roleLabel = isMasterAdmin ? 'Master Admin' : 'Diretoria';
+    if (confirm(`Deseja sair do Modo ${roleLabel} e retornar para a visualização pública dos sócios?`)) {
       logoutAdmin();
     }
   } else {
@@ -23652,17 +23708,41 @@ function openAdminLoginModal() {
 function submitAdminPassword() {
   const input = document.getElementById('admin-password-input');
   const entered = (input?.value || '').trim();
-  const validPass = (appData?.configuracoes?.adminPassword || '1926').trim();
+  const masterPass = (appData?.configuracoes?.masterPassword || '642200').trim();
+  const directorPass = (appData?.configuracoes?.directorPassword || appData?.configuracoes?.adminPassword || '986700').trim();
 
-  if (entered === validPass) {
+  if (entered === masterPass) {
+    adminAuthLevel = 'master';
     isAdminSession = true;
+    isMasterAdmin = true;
     try {
+      sessionStorage.setItem('SAO_JOAO_ADMIN_LEVEL', 'master');
       sessionStorage.setItem('SAO_JOAO_ADMIN_LOGGED', 'true');
     } catch (e) {}
     closeModal('modal-admin-login');
     updateAdminModeUI();
     renderApp();
-    showToast('Modo Diretoria desbloqueado com sucesso!', 'success');
+    showToast('👑 Acesso Master (Total) liberado com sucesso!', 'success');
+    if (window._openParceiroAfterLogin) {
+      const pId = window._parceiroIdAfterLogin || null;
+      window._openParceiroAfterLogin = false;
+      window._parceiroIdAfterLogin = null;
+      setTimeout(() => {
+        openAddParceiroModal(pId);
+      }, 200);
+    }
+  } else if (entered === directorPass) {
+    adminAuthLevel = 'director';
+    isAdminSession = true;
+    isMasterAdmin = false;
+    try {
+      sessionStorage.setItem('SAO_JOAO_ADMIN_LEVEL', 'director');
+      sessionStorage.setItem('SAO_JOAO_ADMIN_LOGGED', 'true');
+    } catch (e) {}
+    closeModal('modal-admin-login');
+    updateAdminModeUI();
+    renderApp();
+    showToast('🔓 Modo Diretoria desbloqueado com sucesso!', 'success');
     if (window._openParceiroAfterLogin) {
       const pId = window._parceiroIdAfterLogin || null;
       window._openParceiroAfterLogin = false;
@@ -23681,9 +23761,88 @@ function submitAdminPassword() {
   }
 }
 
+function openMasterLoginModal(callback) {
+  pendingMasterAction = callback || null;
+  const modal = document.getElementById('modal-master-login');
+  if (!modal) {
+    const pass = prompt('🔒 Área Restrita Master Admin.\nDigite a Senha Master (642200):');
+    if (pass) {
+      const masterPass = (appData?.configuracoes?.masterPassword || '642200').trim();
+      if (pass.trim() === masterPass) {
+        adminAuthLevel = 'master';
+        isAdminSession = true;
+        isMasterAdmin = true;
+        try {
+          sessionStorage.setItem('SAO_JOAO_ADMIN_LEVEL', 'master');
+          sessionStorage.setItem('SAO_JOAO_ADMIN_LOGGED', 'true');
+        } catch (e) {}
+        updateAdminModeUI();
+        showToast('👑 Acesso Master liberado!', 'success');
+        if (callback) callback();
+      } else {
+        alert('Senha Master incorreta.');
+      }
+    }
+    return;
+  }
+  const input = document.getElementById('master-password-input');
+  if (input) input.value = '';
+  const err = document.getElementById('master-login-error');
+  if (err) err.style.display = 'none';
+  modal.classList.add('active');
+  setTimeout(() => {
+    if (input) input.focus();
+  }, 100);
+}
+
+function submitMasterPassword() {
+  const input = document.getElementById('master-password-input');
+  const entered = (input?.value || '').trim();
+  const masterPass = (appData?.configuracoes?.masterPassword || '642200').trim();
+
+  if (entered === masterPass) {
+    adminAuthLevel = 'master';
+    isAdminSession = true;
+    isMasterAdmin = true;
+    try {
+      sessionStorage.setItem('SAO_JOAO_ADMIN_LEVEL', 'master');
+      sessionStorage.setItem('SAO_JOAO_ADMIN_LOGGED', 'true');
+    } catch (e) {}
+    closeModal('modal-master-login');
+    updateAdminModeUI();
+    showToast('👑 Acesso Master liberado com sucesso!', 'success');
+    if (pendingMasterAction) {
+      const fn = pendingMasterAction;
+      pendingMasterAction = null;
+      fn();
+    } else {
+      renderApp();
+    }
+  } else {
+    const err = document.getElementById('master-login-error');
+    if (err) err.style.display = 'block';
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+
+function requireMasterAdmin(action) {
+  if (isMasterAdmin) {
+    if (action) action();
+    return true;
+  }
+  openMasterLoginModal(action);
+  return false;
+}
+
 function logoutAdmin() {
   isAdminSession = false;
+  isMasterAdmin = false;
+  adminAuthLevel = 'visitor';
   try {
+    sessionStorage.removeItem('SAO_JOAO_ADMIN_LEVEL');
     sessionStorage.removeItem('SAO_JOAO_ADMIN_LOGGED');
   } catch (e) {}
   updateAdminModeUI();
@@ -25932,6 +26091,76 @@ function sortRoundPlayersTable(col) {
   renderRodadaManager();
 }
 
+function isRoundClosed(roundNum) {
+  const rnd = (appData?.rounds || []).find(r => r.numero === roundNum);
+  if (!rnd) return false;
+  if (rnd.fechada !== undefined) return rnd.fechada === true;
+  if (rnd.status === 'fechada') return true;
+  if (rnd.status === 'aberta') return false;
+  // Fallback: If round has presences recorded, default to fechada; otherwise aberta
+  let presences = 0;
+  (appData?.players || []).forEach(p => {
+    if (p.rodadas && p.rodadas[roundNum] && p.rodadas[roundNum].p === 1) presences++;
+  });
+  return presences > 0;
+}
+
+function openCurrentRoundForEdit() {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  let rnd = (appData.rounds || []).find(r => r.numero === currentRoundNum);
+  if (!rnd) {
+    if (!appData.rounds) appData.rounds = [];
+    rnd = { numero: currentRoundNum, labelCompleto: `Rodada ${currentRoundNum}` };
+    appData.rounds.push(rnd);
+  }
+  rnd.fechada = false;
+  rnd.status = 'aberta';
+  saveAppState(false);
+  renderRodadaManager();
+  showToast(`🔓 ${currentRoundNum}ª Rodada aberta para edição! Ao terminar, clique em "Salvar e Fechar".`, 'info');
+}
+
+function saveAndCloseCurrentRound() {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  let rnd = (appData.rounds || []).find(r => r.numero === currentRoundNum);
+  if (!rnd) {
+    if (!appData.rounds) appData.rounds = [];
+    rnd = { numero: currentRoundNum, labelCompleto: `Rodada ${currentRoundNum}` };
+    appData.rounds.push(rnd);
+  }
+  rnd.fechada = true;
+  rnd.status = 'fechada';
+  recalculateAllStats();
+  saveAppState(true);
+  renderRodadaManager();
+  showToast(`🔒 ${currentRoundNum}ª Rodada salva e fechada com sucesso!`, 'success');
+}
+
+function saveDraftCurrentRound() {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  let rnd = (appData.rounds || []).find(r => r.numero === currentRoundNum);
+  if (!rnd) {
+    if (!appData.rounds) appData.rounds = [];
+    rnd = { numero: currentRoundNum, labelCompleto: `Rodada ${currentRoundNum}` };
+    appData.rounds.push(rnd);
+  }
+  rnd.fechada = false;
+  rnd.status = 'aberta';
+  recalculateAllStats();
+  saveAppState(true);
+  renderRodadaManager();
+  showToast(`💾 Rascunho da ${currentRoundNum}ª Rodada salvo com sucesso!`, 'info');
+}
+
 function renderRodadaManager() {
   const listContainer = document.getElementById('round-players-list');
   if (!listContainer) return;
@@ -25942,6 +26171,7 @@ function renderRodadaManager() {
   const totals = calculateCurrentRoundTotals();
   const isCampInterno = isCampeonatoInternoRound(currentRoundNum);
   const isRecessoProximo = (currentRoundNum === 50);
+  const isClosed = isRoundClosed(currentRoundNum);
 
   // Populate Round Selector options
   const selectRound = document.getElementById('select-round-header');
@@ -25950,7 +26180,7 @@ function renderRodadaManager() {
     selectRound.setAttribute('data-loaded-season', activeSeasonStr);
     selectRound.innerHTML = rounds.map(r => `
       <option value="${r.numero}" ${r.numero === currentRoundNum ? 'selected' : ''}>
-        ${escapeHtml(r.labelCompleto || `Rodada ${r.numero}`)}${isCampeonatoInternoRound(r.numero) ? ' (🏆 Camp. Interno)' : ''}
+        ${escapeHtml(r.labelCompleto || `Rodada ${r.numero}`)}${isCampeonatoInternoRound(r.numero) ? ' (🏆 Camp. Interno)' : ''}${isRoundClosed(r.numero) ? ' 🔒' : ''}
       </option>
     `).join('');
   } else if (selectRound) {
@@ -25960,19 +26190,34 @@ function renderRodadaManager() {
   // Top info bar
   const headerInfo = document.getElementById('round-header-info');
   if (headerInfo) {
+    const statusBadgeHtml = isClosed
+      ? `<span class="badge" style="background:#dc2626;color:#ffffff;font-size:0.75rem;vertical-align:middle;margin-left:6px;font-weight:700;">🔒 Rodada Fechada</span>`
+      : `<span class="badge" style="background:#16a34a;color:#ffffff;font-size:0.75rem;vertical-align:middle;margin-left:6px;font-weight:700;">🟢 Aberta para Edição</span>`;
+
+    const roundControlsHtml = isClosed ? `
+      <button class="btn btn-secondary" onclick="navigateRound(-1)">◀ Rodada Anterior</button>
+      <button class="btn btn-secondary" onclick="navigateRound(1)">Próxima Rodada ▶</button>
+      <button class="btn btn-warning" onclick="openCurrentRoundForEdit()" style="font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;">
+        <span>🔓</span> Abrir Rodada para Edição
+      </button>
+    ` : `
+      <button class="btn btn-secondary" onclick="navigateRound(-1)">◀ Rodada Anterior</button>
+      <button class="btn btn-secondary" onclick="navigateRound(1)">Próxima Rodada ▶</button>
+      <button class="btn btn-gold" onclick="openSorteadorTimesModal()" style="font-weight:700;">🎲 Sortear Times (8/time)</button>
+      <button class="btn btn-secondary" onclick="saveDraftCurrentRound()" style="font-weight:700;">💾 Salvar Rascunho</button>
+      <button class="btn btn-primary" onclick="saveAndCloseCurrentRound()" style="font-weight:700;background:#15803d;border-color:#166534;">🔒 Salvar e Fechar Rodada</button>
+    `;
+
     headerInfo.innerHTML = `
       <div class="round-current-info">
         <div class="round-badge-lg">${currentRound.numero}ª</div>
         <div class="round-meta">
-          <h3>${escapeHtml(currentRound.labelCompleto || `Rodada ${currentRound.numero}`)} ${isCampInterno ? '<span class="badge" style="background:#1d4ed8;color:#ffffff;font-size:0.75rem;vertical-align:middle;margin-left:6px;">🏆 Camp. Interno</span>' : ''}</h3>
+          <h3>${escapeHtml(currentRound.labelCompleto || `Rodada ${currentRound.numero}`)} ${statusBadgeHtml} ${isCampInterno ? '<span class="badge" style="background:#1d4ed8;color:#ffffff;font-size:0.75rem;vertical-align:middle;margin-left:6px;">🏆 Camp. Interno</span>' : ''}</h3>
           <p id="round-header-meta-p">${currentRound.data ? `Data: ${currentRound.data}` : 'Data a definir'} • ${totals.presenca} atletas presentes • ${totals.gols} gols marcados${isCampInterno ? ' • 🏆 Camp. Interno' : ''}</p>
         </div>
       </div>
       <div class="round-controls">
-        <button class="btn btn-secondary" onclick="navigateRound(-1)">◀ Rodada Anterior</button>
-        <button class="btn btn-secondary" onclick="navigateRound(1)">Próxima Rodada ▶</button>
-        <button class="btn btn-gold" onclick="openSorteadorTimesModal()" style="font-weight:700;">🎲 Sortear Times (8/time)</button>
-        <button class="btn btn-primary" onclick="saveRoundData()">💾 Salvar Dados da Rodada</button>
+        ${roundControlsHtml}
       </div>
     `;
   }
@@ -25981,18 +26226,33 @@ function renderRodadaManager() {
   const quickActions = document.getElementById('round-quick-actions');
   if (quickActions) {
     const hasTimes = currentRound.times && Array.isArray(currentRound.times) && currentRound.times.length > 0;
-    quickActions.innerHTML = `
-      <button class="btn btn-sm btn-secondary" onclick="toggleAllPresence(1)">✓ Marcar Todos os Sócios Ativos como Presentes</button>
-      <button class="btn btn-sm btn-secondary" onclick="toggleAllPresence(0)">✕ Limpar Presenças</button>
-      <button class="btn btn-sm btn-gold" onclick="openSorteadorTimesModal()" style="font-weight:700;">🎲 Sortear Times da Rodada</button>
-      ${hasTimes ? `
-        <span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-weight:700;padding:4px 8px;cursor:pointer;" onclick="openSorteadorTimesModal()" title="Clique para visualizar ou editar os times definidos">
-          ✓ ${currentRound.times.length} times definidos
-        </span>
-      ` : ''}
-      <div style="flex:1;"></div>
-      <span style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">${isCampInterno ? '🏆 Período de Campeonato Interno: Campeão e Lanterna desativados.' : 'Dica: Ao marcar Campeão (C) ou Lanterna (L), a presença é marcada automaticamente.'}</span>
-    `;
+    
+    if (isClosed) {
+      quickActions.innerHTML = `
+        <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:0.6rem 1rem;border-radius:var(--radius-md);font-weight:600;font-size:0.85rem;display:flex;align-items:center;justify-content:space-between;gap:0.75rem;width:100%;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:1.2rem;">🔒</span>
+            <span>Esta rodada está <strong>fechada e bloqueada</strong> para edições. Para alterar presenças, gols, cartões ou sortear times, clique em <strong>"Abrir Rodada para Edição"</strong>.</span>
+          </div>
+          <button class="btn btn-warning btn-sm" onclick="openCurrentRoundForEdit()" style="font-weight:700;white-space:nowrap;">
+            🔓 Abrir Rodada
+          </button>
+        </div>
+      `;
+    } else {
+      quickActions.innerHTML = `
+        <button class="btn btn-sm btn-secondary" onclick="toggleAllPresence(1)">✓ Marcar Todos os Sócios Ativos como Presentes</button>
+        <button class="btn btn-sm btn-secondary" onclick="toggleAllPresence(0)">✕ Limpar Presenças</button>
+        <button class="btn btn-sm btn-gold" onclick="openSorteadorTimesModal()" style="font-weight:700;">🎲 Sortear Times da Rodada</button>
+        ${hasTimes ? `
+          <span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-weight:700;padding:4px 8px;cursor:pointer;" onclick="openSorteadorTimesModal()" title="Clique para visualizar ou editar os times definidos">
+            ✓ ${currentRound.times.length} times definidos
+          </span>
+        ` : ''}
+        <div style="flex:1;"></div>
+        <span style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">${isCampInterno ? '🏆 Período de Campeonato Interno: Campeão e Lanterna desativados.' : 'Dica: Ao marcar Campeão (C) ou Lanterna (L), a presença é marcada automaticamente.'}</span>
+      `;
+    }
   }
 
   // Render Top Totalizer Bar
@@ -26123,13 +26383,15 @@ function renderRodadaManager() {
               <span>⚽</span> Escalação Oficial dos ${currentRound.times.length} Times do Sábado
             </h3>
             <p style="font-size:0.8rem;color:var(--text-muted);margin:2px 0 0 0;">
-              Súmula oficial da rodada: defina campeão/lanterna com 1 clique, altere gols/cartões e troque atletas entre os times
+              ${isClosed ? 'Súmula oficial consolidada (modo somente leitura)' : 'Súmula oficial da rodada: defina campeão/lanterna com 1 clique, altere gols/cartões e troque atletas'}
             </p>
           </div>
           <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
-            <button class="btn btn-gold btn-sm" onclick="openSorteadorTimesModal()" style="font-weight:700;">
-              🎲 Re-sortear Times
-            </button>
+            ${!isClosed ? `
+              <button class="btn btn-gold btn-sm" onclick="openSorteadorTimesModal()" style="font-weight:700;">
+                🎲 Re-sortear Times
+              </button>
+            ` : ''}
             <button class="btn btn-success btn-sm" onclick="copyDrawnTeamsToWhatsApp()" style="font-weight:700;">
               💬 Copiar WhatsApp
             </button>
@@ -26176,10 +26438,10 @@ function renderRodadaManager() {
                 <!-- 1-Click Champion / Lanterna Team Controls -->
                 ${!isCampInterno ? `
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;padding:0.5rem 0.6rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;">
-                    <button class="btn btn-sm ${isChampTeam ? 'btn-warning' : 'btn-secondary'}" style="font-size:0.75rem;padding:4px 6px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:0.3rem;" onclick="setRoundTeamChampion(${currentRoundNum}, ${tIdx})" title="Marcar todo o time como Campeão da rodada com 1 clique">
+                    <button class="btn btn-sm ${isChampTeam ? 'btn-warning' : 'btn-secondary'}" style="font-size:0.75rem;padding:4px 6px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:0.3rem;${isClosed ? 'opacity:0.7;cursor:not-allowed;' : ''}" ${isClosed ? 'disabled' : `onclick="setRoundTeamChampion(${currentRoundNum}, ${tIdx})"`} title="${isClosed ? 'Rodada Fechada' : 'Marcar todo o time como Campeão da rodada com 1 clique'}">
                       <span>🏆</span> ${isChampTeam ? 'Campeão ✓' : 'Marcar Campeão'}
                     </button>
-                    <button class="btn btn-sm ${isLanternTeam ? 'btn-danger' : 'btn-secondary'}" style="font-size:0.75rem;padding:4px 6px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:0.3rem;" onclick="setRoundTeamLanterna(${currentRoundNum}, ${tIdx})" title="Marcar todo o time como Lanterna da rodada com 1 clique">
+                    <button class="btn btn-sm ${isLanternTeam ? 'btn-danger' : 'btn-secondary'}" style="font-size:0.75rem;padding:4px 6px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:0.3rem;${isClosed ? 'opacity:0.7;cursor:not-allowed;' : ''}" ${isClosed ? 'disabled' : `onclick="setRoundTeamLanterna(${currentRoundNum}, ${tIdx})"`} title="${isClosed ? 'Rodada Fechada' : 'Marcar todo o time como Lanterna da rodada com 1 clique'}">
                       <span>🔻</span> ${isLanternTeam ? 'Lanterna ✓' : 'Marcar Lanterna'}
                     </button>
                   </div>
@@ -26191,7 +26453,6 @@ function renderRodadaManager() {
                     const pl = appData.players.find(x => x.id === p.id) || p;
                     const rData = (pl.rodadas && pl.rodadas[currentRoundNum]) || { p: 1, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
                     const isSwapTarget = currentRoundBoardSwapState && currentRoundBoardSwapState.teamIndex === tIdx && currentRoundBoardSwapState.playerIndex === pIdx;
-                    const stars = formatStars(p.qualidade, false);
                     const bClass = p.isSuplente ? 'pos-badge-reserva' : (posBadgeClass[p.slotPosicao] || 'pos-badge-meia-armacao');
                     const icon = p.isSuplente ? '🔄' : (posIcons[p.slotPosicao] || '⚽');
                     const posLabel = p.isSuplente ? 'SUP' : (posShortLabels[p.slotPosicao] || (p.slotPosicao || 'JOG').substring(0, 3).toUpperCase());
@@ -26215,30 +26476,32 @@ function renderRodadaManager() {
                         <div style="display:flex;align-items:center;gap:0.3rem;flex-shrink:0;">
                           <!-- Gols -->
                           <div class="counter-control" style="transform:scale(0.85);margin:-2px 0;" title="Gols marcados">
-                            <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'g', -1)">-</button>
+                            <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'g', -1)"`}>-</button>
                             <span class="counter-val" id="val-g-${p.id}" style="min-width:14px;font-size:0.75rem;">${rData.g || 0}</span>
-                            <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'g', 1)">+</button>
+                            <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'g', 1)"`}>+</button>
                           </div>
                           <!-- Cartão Amarelo -->
                           <div class="counter-control" style="transform:scale(0.85);margin:-2px 0;" title="Cartões Amarelos">
-                            <button class="counter-btn" style="color:#ca8a04;" onclick="adjustPlayerRoundStat(${p.id}, 'ca', -1)">-</button>
+                            <button class="counter-btn" style="color:#ca8a04;${isClosed ? 'opacity:0.25;cursor:not-allowed;' : ''}" ${isClosed ? 'disabled' : `onclick="adjustPlayerRoundStat(${p.id}, 'ca', -1)"`}>-</button>
                             <span class="counter-val" id="val-ca-${p.id}" style="min-width:14px;font-size:0.75rem;color:#ca8a04;">${rData.ca || 0}</span>
-                            <button class="counter-btn" style="color:#ca8a04;" onclick="adjustPlayerRoundStat(${p.id}, 'ca', 1)">+</button>
+                            <button class="counter-btn" style="color:#ca8a04;${isClosed ? 'opacity:0.25;cursor:not-allowed;' : ''}" ${isClosed ? 'disabled' : `onclick="adjustPlayerRoundStat(${p.id}, 'ca', 1)"`}>+</button>
                           </div>
                           <!-- Cartão Vermelho -->
                           <div class="counter-control" style="transform:scale(0.85);margin:-2px 0;" title="Cartão Vermelho">
-                            <button class="counter-btn" style="color:#dc2626;" onclick="adjustPlayerRoundStat(${p.id}, 'cv', -1)">-</button>
+                            <button class="counter-btn" style="color:#dc2626;${isClosed ? 'opacity:0.25;cursor:not-allowed;' : ''}" ${isClosed ? 'disabled' : `onclick="adjustPlayerRoundStat(${p.id}, 'cv', -1)"`}>-</button>
                             <span class="counter-val" id="val-cv-${p.id}" style="min-width:14px;font-size:0.75rem;color:#dc2626;">${rData.cv || 0}</span>
-                            <button class="counter-btn" style="color:#dc2626;" onclick="adjustPlayerRoundStat(${p.id}, 'cv', 1)">+</button>
+                            <button class="counter-btn" style="color:#dc2626;${isClosed ? 'opacity:0.25;cursor:not-allowed;' : ''}" ${isClosed ? 'disabled' : `onclick="adjustPlayerRoundStat(${p.id}, 'cv', 1)"`}>+</button>
                           </div>
-                          <!-- Swap button -->
-                          <button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:0.68rem;height:22px;" onclick="handleRoundBoardPlayerSwap(${tIdx}, ${pIdx})" title="Inverter este jogador com atleta de outro time">
-                            ${isSwapTarget ? '✕' : '⇄'}
-                          </button>
-                          <!-- Remove from team -->
-                          <button class="btn btn-secondary btn-sm" style="padding:1px 4px;font-size:0.68rem;height:22px;color:#b91c1c;" onclick="removePlayerFromRoundTeam(${tIdx}, ${pIdx})" title="Remover do time">
-                            ✕
-                          </button>
+                          ${!isClosed ? `
+                            <!-- Swap button -->
+                            <button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:0.68rem;height:22px;" onclick="handleRoundBoardPlayerSwap(${tIdx}, ${pIdx})" title="Inverter este jogador com atleta de outro time">
+                              ${isSwapTarget ? '✕' : '⇄'}
+                            </button>
+                            <!-- Remove from team -->
+                            <button class="btn btn-secondary btn-sm" style="padding:1px 4px;font-size:0.68rem;height:22px;color:#b91c1c;" onclick="removePlayerFromRoundTeam(${tIdx}, ${pIdx})" title="Remover do time">
+                              ✕
+                            </button>
+                          ` : ''}
                         </div>
                       </div>
                     `;
@@ -26246,11 +26509,13 @@ function renderRodadaManager() {
                 </div>
 
                 <!-- Footer of team card -->
-                <div style="padding:0.4rem 0.6rem;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;">
-                  <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="promptAddPlayerToRoundTeam(${tIdx})">
-                    ➕ Adicionar Atleta
-                  </button>
-                </div>
+                ${!isClosed ? `
+                  <div style="padding:0.4rem 0.6rem;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;">
+                    <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="promptAddPlayerToRoundTeam(${tIdx})">
+                      ➕ Adicionar Atleta
+                    </button>
+                  </div>
+                ` : ''}
 
               </div>
             `;
@@ -26266,9 +26531,15 @@ function renderRodadaManager() {
         <p style="font-size:0.85rem;color:var(--text-muted);max-width:500px;margin:0.4rem auto 1rem auto;">
           Utilize o sorteador inteligente (8 atletas por time equilibrados por qualidade técnica e posição) para montar e gravar os 4 times oficiais do sábado.
         </p>
-        <button class="btn btn-gold" onclick="openSorteadorTimesModal()" style="font-weight:700;padding:0.6rem 1.4rem;">
-          🎲 Sortear 4 Times da Rodada
-        </button>
+        ${!isClosed ? `
+          <button class="btn btn-gold" onclick="openSorteadorTimesModal()" style="font-weight:700;padding:0.6rem 1.4rem;">
+            🎲 Sortear 4 Times da Rodada
+          </button>
+        ` : `
+          <button class="btn btn-warning" onclick="openCurrentRoundForEdit()" style="font-weight:700;padding:0.6rem 1.4rem;">
+            🔓 Abrir Rodada para Sortear Times
+          </button>
+        `}
       </div>
     `;
   }
@@ -26303,8 +26574,8 @@ function renderRodadaManager() {
               <tr class="${isPresent ? 'row-present' : ''}" id="row-player-${p.id}" style="${isPresent ? 'background:#f0fdf4;' : ''}">
                 <td style="font-weight:700;color:var(--text-muted);">#${p.seq}</td>
                 <td style="text-align:center;">
-                  <label style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer;margin:0;padding:2px 6px;">
-                    <input type="checkbox" id="p-check-${p.id}" ${isPresent ? 'checked' : ''} onchange="updatePlayerRoundStat(${p.id}, 'p', this.checked ? 1 : 0)" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
+                  <label style="display:inline-flex;align-items:center;justify-content:center;cursor:${isClosed ? 'not-allowed' : 'pointer'};margin:0;padding:2px 6px;">
+                    <input type="checkbox" id="p-check-${p.id}" ${isPresent ? 'checked' : ''} ${isClosed ? 'disabled' : `onchange="updatePlayerRoundStat(${p.id}, 'p', this.checked ? 1 : 0)"`} style="width:18px;height:18px;accent-color:var(--primary);cursor:${isClosed ? 'not-allowed' : 'pointer'};">
                   </label>
                 </td>
                 <td>
@@ -26321,9 +26592,9 @@ function renderRodadaManager() {
                 </td>
                 <td style="text-align:center;">
                   <div class="counter-control" style="justify-content:center;">
-                    <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'g', -1)">-</button>
+                    <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'g', -1)"`}>-</button>
                     <span class="counter-val" id="val-g-${p.id}">${rData.g || 0}</span>
-                    <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'g', 1)">+</button>
+                    <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'g', 1)"`}>+</button>
                   </div>
                 </td>
                 <td style="text-align:center;">
@@ -26332,7 +26603,7 @@ function renderRodadaManager() {
                       🏆 C
                     </button>
                   ` : `
-                    <button class="btn-toggle-badge ${rData.c === 1 ? 'active-champ' : ''}" id="btn-c-${p.id}" onclick="togglePlayerRoundChamp(${p.id})" style="font-size:0.75rem;padding:3px 8px;" title="Time Campeão da Rodada">
+                    <button class="btn-toggle-badge ${rData.c === 1 ? 'active-champ' : ''}" id="btn-c-${p.id}" ${isClosed ? 'disabled style="opacity:0.75;cursor:not-allowed;font-size:0.75rem;padding:3px 8px;"' : `onclick="togglePlayerRoundChamp(${p.id})" style="font-size:0.75rem;padding:3px 8px;"`} title="${isClosed ? 'Rodada Fechada' : 'Time Campeão da Rodada'}">
                       🏆 C
                     </button>
                   `}
@@ -26343,23 +26614,23 @@ function renderRodadaManager() {
                       🔻 L
                     </button>
                   ` : `
-                    <button class="btn-toggle-badge ${rData.l === 1 ? 'active-lantern' : ''}" id="btn-l-${p.id}" onclick="togglePlayerRoundLantern(${p.id})" style="font-size:0.75rem;padding:3px 8px;" title="Time Lanterna da Rodada">
+                    <button class="btn-toggle-badge ${rData.l === 1 ? 'active-lantern' : ''}" id="btn-l-${p.id}" ${isClosed ? 'disabled style="opacity:0.75;cursor:not-allowed;font-size:0.75rem;padding:3px 8px;"' : `onclick="togglePlayerRoundLantern(${p.id})" style="font-size:0.75rem;padding:3px 8px;"`} title="${isClosed ? 'Rodada Fechada' : 'Time Lanterna da Rodada'}">
                       🔻 L
                     </button>
                   `}
                 </td>
                 <td style="text-align:center;">
                   <div class="counter-control" style="justify-content:center;">
-                    <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'ca', -1)">-</button>
+                    <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'ca', -1)"`}>-</button>
                     <span class="counter-val" id="val-ca-${p.id}" style="color:#ca8a04;font-weight:800;">${rData.ca || 0}</span>
-                    <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'ca', 1)">+</button>
+                    <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'ca', 1)"`}>+</button>
                   </div>
                 </td>
                 <td style="text-align:center;">
                   <div class="counter-control" style="justify-content:center;">
-                    <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'cv', -1)">-</button>
+                    <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'cv', -1)"`}>-</button>
                     <span class="counter-val" id="val-cv-${p.id}" style="color:#dc2626;font-weight:800;">${rData.cv || 0}</span>
-                    <button class="counter-btn" onclick="adjustPlayerRoundStat(${p.id}, 'cv', 1)">+</button>
+                    <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${p.id}, 'cv', 1)"`}>+</button>
                   </div>
                 </td>
               </tr>
@@ -26367,6 +26638,29 @@ function renderRodadaManager() {
           }).join('')}
         </tbody>
       </table>
+    </div>
+  `;
+
+  const bottomActionButtons = !isClosed ? `
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;">
+      <span style="font-size:0.82rem;color:var(--text-muted);margin-right:auto;">
+        🟢 <strong>Rodada Aberta:</strong> Todas as alterações são sincronizadas. Ao concluir os lançamentos, clique em Salvar e Fechar.
+      </span>
+      <button class="btn btn-secondary" onclick="saveDraftCurrentRound()" style="font-weight:700;">
+        💾 Salvar Rascunho
+      </button>
+      <button class="btn btn-primary" onclick="saveAndCloseCurrentRound()" style="font-weight:700;background:#15803d;border-color:#166534;">
+        🔒 Salvar e Fechar Rodada (Bloquear)
+      </button>
+    </div>
+  ` : `
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;">
+      <span style="font-size:0.82rem;color:var(--text-muted);margin-right:auto;">
+        🔒 <strong>Rodada Fechada:</strong> Dados consolidados e protegidos contra alterações acidentais.
+      </span>
+      <button class="btn btn-warning" onclick="openCurrentRoundForEdit()" style="font-weight:700;">
+        🔓 Abrir Rodada para Edição
+      </button>
     </div>
   `;
 
@@ -26379,6 +26673,7 @@ function renderRodadaManager() {
         ${playersTableHtml}
       </div>
     </details>
+    ${bottomActionButtons}
     <div style="margin-top:1.25rem;">
       ${buildRoundTotalizerHtml(totals)}
     </div>
@@ -26388,6 +26683,10 @@ function renderRodadaManager() {
 let currentRoundBoardSwapState = null; // { teamIndex, playerIndex }
 
 function setRoundTeamChampion(roundNum, teamIndex) {
+  if (isRoundClosed(roundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   if (isCampeonatoInternoRound(roundNum)) {
     showToast('Campeão e Lanterna não são pontuados durante o Campeonato Interno.', 'info');
     return;
@@ -26441,6 +26740,10 @@ function setRoundTeamChampion(roundNum, teamIndex) {
 }
 
 function setRoundTeamLanterna(roundNum, teamIndex) {
+  if (isRoundClosed(roundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   if (isCampeonatoInternoRound(roundNum)) {
     showToast('Campeão e Lanterna não são pontuados durante o Campeonato Interno.', 'info');
     return;
@@ -26494,6 +26797,10 @@ function setRoundTeamLanterna(roundNum, teamIndex) {
 }
 
 function handleRoundBoardPlayerSwap(teamIndex, playerIndex) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
   if (!rnd || !rnd.times) return;
 
@@ -26540,6 +26847,10 @@ function handleRoundBoardPlayerSwap(teamIndex, playerIndex) {
 }
 
 function removePlayerFromRoundTeam(teamIndex, playerIndex) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
   if (!rnd || !rnd.times || !rnd.times[teamIndex]) return;
 
@@ -26554,6 +26865,10 @@ function removePlayerFromRoundTeam(teamIndex, playerIndex) {
 }
 
 function promptAddPlayerToRoundTeam(teamIndex) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
   if (!rnd || !rnd.times || !rnd.times[teamIndex]) return;
 
@@ -26611,6 +26926,10 @@ function navigateRound(delta) {
 }
 
 function updatePlayerRoundStat(playerId, field, val) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   const player = appData.players.find(p => p.id === playerId);
   if (!player) return;
 
@@ -26639,9 +26958,14 @@ function updatePlayerRoundStat(playerId, field, val) {
   }
 
   updateRoundTotalizers();
+  saveAppState(false);
 }
 
 function adjustPlayerRoundStat(playerId, field, delta) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   const player = appData.players.find(p => p.id === playerId);
   if (!player) return;
 
@@ -26661,10 +26985,15 @@ function adjustPlayerRoundStat(playerId, field, delta) {
     updatePlayerRoundStat(playerId, 'p', 1);
   } else {
     updateRoundTotalizers();
+    saveAppState(false);
   }
 }
 
 function togglePlayerRoundChamp(playerId) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   if (isCampeonatoInternoRound(currentRoundNum)) {
     showToast('Campeão e Lanterna não são pontuados durante o Campeonato Interno (07/03 a 23/05/2026).', 'info');
     return;
@@ -26693,10 +27022,15 @@ function togglePlayerRoundChamp(playerId) {
     updatePlayerRoundStat(playerId, 'p', 1);
   } else {
     updateRoundTotalizers();
+    saveAppState(false);
   }
 }
 
 function togglePlayerRoundLantern(playerId) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   if (isCampeonatoInternoRound(currentRoundNum)) {
     showToast('Campeão e Lanterna não são pontuados durante o Campeonato Interno (07/03 a 23/05/2026).', 'info');
     return;
@@ -26725,13 +27059,30 @@ function togglePlayerRoundLantern(playerId) {
     updatePlayerRoundStat(playerId, 'p', 1);
   } else {
     updateRoundTotalizers();
+    saveAppState(false);
   }
 }
 
 function toggleAllPresence(val) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
   appData.players.forEach(p => {
     if (val === 1 && !p.ativo) return; // Only active members
-    updatePlayerRoundStat(p.id, 'p', val);
+    if (!p.rodadas) p.rodadas = {};
+    if (!p.rodadas[currentRoundNum]) {
+      p.rodadas[currentRoundNum] = { p: 0, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
+    }
+    p.rodadas[currentRoundNum].p = val;
+    if (val === 0) {
+      p.rodadas[currentRoundNum].c = 0;
+      p.rodadas[currentRoundNum].l = 0;
+      const btnC = document.getElementById(`btn-c-${p.id}`);
+      if (btnC) btnC.classList.remove('active-champ');
+      const btnL = document.getElementById(`btn-l-${p.id}`);
+      if (btnL) btnL.classList.remove('active-lantern');
+    }
     const chk = document.getElementById(`p-check-${p.id}`);
     if (chk) chk.checked = val === 1;
     const row = document.getElementById(`row-player-${p.id}`);
@@ -26741,12 +27092,12 @@ function toggleAllPresence(val) {
     }
   });
   updateRoundTotalizers();
+  saveAppState(false);
+  showToast(val === 1 ? 'Todos os sócios ativos marcados como presentes!' : 'Presenças da rodada limpas!', 'info');
 }
 
 function saveRoundData() {
-  recalculateAllStats();
-  saveAppState(true);
-  renderRodadaManager();
+  saveAndCloseCurrentRound();
 }
 
 // ==========================================================================
@@ -29806,6 +30157,10 @@ function setAniversariantesMonth(m) {
 }
 
 function exportAniversariantesICS() {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
   const events = [];
   const nowStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 
@@ -29894,6 +30249,10 @@ END:VCALENDAR`;
 }
 
 function openGoogleCalendarForPerson(targetId, isParceiro) {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
   let person = null;
   if (isParceiro) {
     person = (appData.aniversariantesParceiros || []).find(p => String(p.id) === String(targetId));
@@ -29935,6 +30294,10 @@ function openGoogleCalendarForPerson(targetId, isParceiro) {
 }
 
 function copyMonthlyCelebrantsToWhatsApp() {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
   const monthObj = MESES.find((m, idx) => (idx + 1) === currentAniversariantesMonth) || { nome: 'Mês' };
   const celebrants = [];
 
@@ -30145,6 +30508,7 @@ function renderAniversariantes() {
           </p>
         </div>
       </div>
+      ${isAdminSession ? `
       <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
         <button class="btn btn-warning btn-sm" style="font-weight:700;" onclick="handleOpenAddParceiroClick()">
           ➕ Incluir Parceiro
@@ -30156,6 +30520,7 @@ function renderAniversariantes() {
           📅 Google Agenda (.ics)
         </button>
       </div>
+      ` : ''}
     </div>
 
     <!-- Alerta: Próximos Aniversariantes (Próximos 15 Dias) -->
@@ -30175,7 +30540,9 @@ function renderAniversariantes() {
               ${renderPlayerAvatarHtml(u.player, 'player-avatar-xs')}
               <strong style="color:var(--text-main);">${escapeHtml(u.player.nome)}</strong>
               <span style="color:#92400e;font-size:0.75rem;">(${String(u.day).padStart(2,'0')}/${String(u.month).padStart(2,'0')})</span>
-              <button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:0.7rem;" onclick="openGoogleCalendarForPerson('${u.player.id}', ${u.isParceiro})" title="Adicionar à Google Agenda">📅</button>
+              ${isAdminSession ? `
+                <button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:0.7rem;" onclick="openGoogleCalendarForPerson('${u.player.id}', ${u.isParceiro})" title="Adicionar à Google Agenda">📅</button>
+              ` : ''}
             </div>
           `).join('')}
         </div>
@@ -30188,7 +30555,7 @@ function renderAniversariantes() {
         <div style="font-size:2.2rem;margin-bottom:0.5rem;">📅</div>
         <h4 style="font-size:1.05rem;color:var(--text-main);">Nenhum aniversariante cadastrado em ${monthObj.nome}</h4>
         <p style="font-size:0.82rem;color:var(--text-muted);max-width:420px;margin:0.4rem auto 0 auto;">
-          Nenhum sócio ativo ou parceiro registrado faz aniversário no mês de ${monthObj.nome}. Selecione outro mês na barra superior ou clique em "➕ Incluir Parceiro".
+          Nenhum sócio ativo ou parceiro registrado faz aniversário no mês de ${monthObj.nome}. Selecione outro mês na barra superior.
         </p>
       </div>
     ` : `
@@ -30232,7 +30599,8 @@ function renderAniversariantes() {
               </div>
             </div>
 
-            <!-- Botões de Ação & Lembrete -->
+            <!-- Botões de Ação & Lembrete (Exclusivo Diretoria) -->
+            ${isAdminSession ? `
             <div style="display:flex;flex-direction:column;gap:0.3rem;margin-top:auto;">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.35rem;">
                 <button class="btn btn-primary btn-sm" style="padding:3px 5px;font-size:0.72rem;" onclick="openBirthdayCardModal('${c.player.id}')" title="Criar cartão com foto e escudo oficial">
@@ -30246,6 +30614,7 @@ function renderAniversariantes() {
                 📅 Google Agenda
               </button>
             </div>
+            ` : ''}
             ${c.isParceiro && isAdminSession ? `
               <div style="display:flex;gap:0.35rem;margin-top:0.25rem;">
                 <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.7rem;padding:2px 5px;" onclick="handleOpenAddParceiroClick('${c.player.id}')">✏️ Editar Parceiro</button>
@@ -30269,16 +30638,18 @@ function renderAniversariantes() {
             Pessoas queridas e parceiros homenageados pelo clube (acesso de edição exclusivo à Diretoria)
           </p>
         </div>
+        ${isAdminSession ? `
         <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
           <button class="btn btn-primary btn-sm" style="font-size:0.75rem;padding:4px 8px;" onclick="handleOpenAddParceiroClick()">
             ➕ Incluir Aniversariante Parceiro
           </button>
         </div>
+        ` : ''}
       </div>
 
       ${totalParceiros === 0 ? `
         <div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:0.85rem;">
-          Nenhum parceiro cadastrado ainda. Clique em "➕ Incluir Aniversariante Parceiro" para adicionar.
+          Nenhum parceiro cadastrado ainda.
         </div>
       ` : `
         <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:0.65rem;">
@@ -30313,6 +30684,7 @@ function renderAniversariantes() {
                   ${parc.observacao ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;">${escapeHtml(parc.observacao)}</div>` : ''}
                 </div>
 
+                ${isAdminSession ? `
                 <div style="display:flex;gap:0.3rem;padding-top:0.4rem;border-top:1px dashed var(--border);margin-top:auto;flex-wrap:wrap;">
                   ${hasDate ? `
                     <button class="btn btn-secondary btn-sm" style="flex:1;font-size:0.7rem;padding:2px 4px;" onclick="openBirthdayCardModal('${parc.id}')" title="Gerar Cartão Oficial">
@@ -30328,12 +30700,11 @@ function renderAniversariantes() {
                   <button class="btn btn-secondary btn-sm" style="font-size:0.7rem;padding:2px 6px;" onclick="handleOpenAddParceiroClick('${parc.id}')" title="Editar informações (Exclusivo Diretoria)">
                     ✏️ Editar
                   </button>
-                  ${isAdminSession ? `
-                    <button class="btn btn-secondary btn-sm" style="color:#b91c1c;font-size:0.7rem;padding:2px 6px;" onclick="deleteParceiroAniversariante('${parc.id}')" title="Remover parceiro">
-                      🗑️
-                    </button>
-                  ` : ''}
+                  <button class="btn btn-secondary btn-sm" style="color:#b91c1c;font-size:0.7rem;padding:2px 6px;" onclick="deleteParceiroAniversariante('${parc.id}')" title="Remover parceiro">
+                    🗑️
+                  </button>
                 </div>
+                ` : ''}
               </div>
             `;
           }).join('')}
@@ -30351,7 +30722,7 @@ function handleOpenAddParceiroClick(parceiroId = null) {
     openAdminLoginModal();
     const err = document.getElementById('admin-login-error');
     if (err) {
-      err.textContent = 'Área restrita à Diretoria. Digite a senha de Diretor (1926) para cadastrar ou editar aniversariantes parceiros.';
+      err.textContent = 'Área restrita à Diretoria. Digite a senha de Diretoria (986700) para cadastrar ou editar aniversariantes parceiros.';
       err.style.display = 'block';
     }
     return;
@@ -31066,19 +31437,25 @@ function renderConfiguracoes() {
       </div>
 
       <div class="kpi-card" style="display:block;">
-        <h3 style="margin-bottom:1rem;font-size:1.1rem;color:var(--text-main);">🔐 Senha de Acesso da Diretoria</h3>
+        <h3 style="margin-bottom:1rem;font-size:1.1rem;color:var(--text-main);">🔐 Senhas de Acesso e Permissões</h3>
         
         <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">
-          Esta senha protege e oculta as abas financeiras, caixa, rodadas, fichas completas e configurações quando o arquivo for compartilhado com outros sócios.
+          O sistema possui dois níveis de senha administrativa: a <strong>Senha de Diretoria</strong> (para gestão das rodadas, finanças e sócios) e a <strong>Senha Master</strong> (acesso irrestrito incluindo o Controle de Qualidade técnica).
         </p>
 
-        <div class="form-group">
-          <label>Senha Atual da Diretoria:</label>
-          <input type="text" class="form-control" id="cfg-admin-pass" value="${escapeHtml(cfg.adminPassword || '1926')}" placeholder="Digite a nova senha...">
-          <small style="color:var(--text-muted);font-size:0.75rem;margin-top:4px;display:block;">Dica: Use uma senha que você e o outro administrador lembrem facilmente (padrão inicial: <strong>1926</strong>).</small>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label style="font-weight:700;">🔓 Senha da Diretoria (Intermediária):</label>
+          <input type="text" class="form-control" id="cfg-director-pass" value="${escapeHtml(cfg.directorPassword || cfg.adminPassword || '986700')}" placeholder="Digite a senha de diretoria...">
+          <small style="color:var(--text-muted);font-size:0.75rem;margin-top:2px;display:block;">Acesso às abas financeiras, caixa, sócios e rodadas (sem controle de qualidade).</small>
         </div>
 
-        <button class="btn btn-primary" style="margin-top:0.5rem;" onclick="saveAdminPasswordConfig()">Salvar Nova Senha</button>
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label style="font-weight:700;">👑 Senha Master (Acesso Total):</label>
+          <input type="text" class="form-control" id="cfg-master-pass" value="${escapeHtml(cfg.masterPassword || '642200')}" placeholder="Digite a senha master...">
+          <small style="color:var(--text-muted);font-size:0.75rem;margin-top:2px;display:block;">Acesso completo a todas as funções, incluindo o Controle de Qualidade e notas técnicas.</small>
+        </div>
+
+        <button class="btn btn-primary" style="margin-top:0.25rem;" onclick="saveAdminPasswordConfig()">Salvar Novas Senhas</button>
       </div>
 
       <!-- Card: Gestão de Temporadas & Virada para 2027 -->
@@ -31153,19 +31530,31 @@ function renderConfiguracoes() {
 }
 
 function saveAdminPasswordConfig() {
-  const newPass = document.getElementById('cfg-admin-pass').value.trim();
-  if (!newPass) {
-    alert('A senha da diretoria não pode ficar vazia.');
+  if (!isMasterAdmin) {
+    requireMasterAdmin(() => {
+      saveAdminPasswordConfig();
+    });
+    return;
+  }
+  const directorPass = (document.getElementById('cfg-director-pass')?.value || '').trim();
+  const masterPass = (document.getElementById('cfg-master-pass')?.value || '').trim();
+
+  if (!directorPass || !masterPass) {
+    alert('As senhas não podem ficar vazias.');
     return;
   }
   if (!appData.configuracoes) appData.configuracoes = {};
-  appData.configuracoes.adminPassword = newPass;
+  appData.configuracoes.directorPassword = directorPass;
+  appData.configuracoes.masterPassword = masterPass;
+  appData.configuracoes.adminPassword = directorPass;
+
   saveAppState(true);
-  showToast('Senha da diretoria atualizada com sucesso!', 'success');
+  showToast('Senhas de Diretoria e Master atualizadas com sucesso!', 'success');
 }
 
 function saveConfigSettings() {
-  const prevPass = appData.configuracoes?.adminPassword || '1926';
+  const prevDirectorPass = appData.configuracoes?.directorPassword || appData.configuracoes?.adminPassword || '986700';
+  const prevMasterPass = appData.configuracoes?.masterPassword || '642200';
   appData.configuracoes = {
     nomeClube: document.getElementById('cfg-nome-clube').value.trim(),
     ano: appData.configuracoes?.ano || 2026,
@@ -31175,7 +31564,9 @@ function saveConfigSettings() {
     valorMultaVermelho: parseFloat(document.getElementById('cfg-multa-cv').value) || 15,
     chavePix: document.getElementById('cfg-chave-pix').value.trim(),
     titularPix: document.getElementById('cfg-titular-pix').value.trim(),
-    adminPassword: prevPass
+    directorPassword: prevDirectorPass,
+    masterPassword: prevMasterPass,
+    adminPassword: prevDirectorPass
   };
 
   saveAppState(true);
@@ -31543,7 +31934,11 @@ function openEditPlayerModal(playerId) {
   
   const qualVal = (parseFloat(player.qualidade) || 3.0).toFixed(1);
   const qualEl = document.getElementById('edit-p-qualidade');
-  if (qualEl) qualEl.value = qualVal;
+  if (qualEl) {
+    qualEl.value = qualVal;
+    qualEl.disabled = !isMasterAdmin;
+    qualEl.title = isMasterAdmin ? 'Editar Nível Técnico' : 'Apenas o Administrador Master (642200) pode alterar o nível técnico';
+  }
 
   document.getElementById('edit-p-tel').value = player.telefone || '';
   document.getElementById('edit-p-ativo').value = player.statusSocio || (player.ativo ? 'Ativo' : 'Convidado');
@@ -31572,7 +31967,9 @@ function saveEditedPlayer() {
   player.posicao = (p2 && p2 !== p1) ? `${p1} / ${p2}` : p1;
 
   player.nascimento = document.getElementById('edit-p-nasc').value.trim();
-  player.qualidade = parseFloat(document.getElementById('edit-p-qualidade').value) || 3.0;
+  if (isMasterAdmin) {
+    player.qualidade = parseFloat(document.getElementById('edit-p-qualidade').value) || 3.0;
+  }
   player.telefone = document.getElementById('edit-p-tel').value.trim();
   const statusVal = document.getElementById('edit-p-ativo').value;
   player.statusSocio = statusVal;
@@ -31604,7 +32001,11 @@ function openNewPlayerModal() {
 
   document.getElementById('new-p-nasc').value = '';
   const qualEl = document.getElementById('new-p-qualidade');
-  if (qualEl) qualEl.value = '3.0';
+  if (qualEl) {
+    qualEl.value = '3.0';
+    qualEl.disabled = !isMasterAdmin;
+    qualEl.title = isMasterAdmin ? 'Definir Nível Técnico' : 'Apenas o Administrador Master (642200) pode alterar o nível técnico';
+  }
 
   document.getElementById('new-p-tel').value = '';
   document.getElementById('new-p-ativo').value = 'Ativo';
@@ -31650,7 +32051,7 @@ function saveNewPlayer() {
     nome: nome,
     posicao: fullPos,
     nascimento: document.getElementById('new-p-nasc').value.trim(),
-    qualidade: parseFloat(document.getElementById('new-p-qualidade').value) || 3.0,
+    qualidade: isMasterAdmin ? (parseFloat(document.getElementById('new-p-qualidade').value) || 3.0) : 3.0,
     idade: 0,
     dataEntrada: '2026',
     statusSocio: statusVal,
@@ -31757,8 +32158,10 @@ function escapeHtml(str) {
 // 15. CONTROLE DE QUALIDADE DOS ATLETAS & POSIÇÕES
 // ==========================================================================
 function openQualidadeManagerModal() {
-  if (!isAdminSession) {
-    openAdminLoginModal();
+  if (!isMasterAdmin) {
+    requireMasterAdmin(() => {
+      openQualidadeManagerModal();
+    });
     return;
   }
   const modal = document.getElementById('modal-qualidade-manager');
@@ -31976,6 +32379,12 @@ function renderQualidadeTable() {
 }
 
 function setPlayerQuality(playerId, stars) {
+  if (!isMasterAdmin) {
+    requireMasterAdmin(() => {
+      setPlayerQuality(playerId, stars);
+    });
+    return;
+  }
   const p = appData.players.find(x => x.id === playerId);
   if (!p) return;
   const num = Math.min(5, Math.max(1, parseFloat(stars) || 3.0));
@@ -31987,6 +32396,12 @@ function setPlayerQuality(playerId, stars) {
 }
 
 function updatePlayerDualPosition(playerId, slotIndex, newPos) {
+  if (!isMasterAdmin) {
+    requireMasterAdmin(() => {
+      updatePlayerDualPosition(playerId, slotIndex, newPos);
+    });
+    return;
+  }
   const p = appData.players.find(x => x.id === playerId);
   if (!p) return;
   const parsed = parsePlayerPositions(p.posicao);
