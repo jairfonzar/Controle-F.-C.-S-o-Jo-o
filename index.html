@@ -4529,21 +4529,17 @@ function initAppState() {
         }
       }
 
-      // Migration to version 11: Atualizacao do Fluxo de Caixa e Dados Completos
-      if (!appData.dataVersion || appData.dataVersion < 11) {
-        appData.dataVersion = 11;
-        if (window.INITIAL_SAO_JOAO_DATA) {
-          if (window.INITIAL_SAO_JOAO_DATA.fluxoCaixa && window.INITIAL_SAO_JOAO_DATA.fluxoCaixa.length > 0) {
-            if (!appData.fluxoCaixa || appData.fluxoCaixa.length < window.INITIAL_SAO_JOAO_DATA.fluxoCaixa.length) {
-              appData.fluxoCaixa = JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA.fluxoCaixa));
-            }
-          }
-          if (window.INITIAL_SAO_JOAO_DATA.players) {
-            appData.players = JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA.players));
-          }
-          if (window.INITIAL_SAO_JOAO_DATA.rounds) {
-            appData.rounds = JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA.rounds));
-          }
+      // Ensure Cash Flow (Fluxo de Caixa) is always populated and never lost
+      if (!appData.fluxoCaixa || !Array.isArray(appData.fluxoCaixa) || appData.fluxoCaixa.length < (window.INITIAL_SAO_JOAO_DATA?.fluxoCaixa?.length || 0)) {
+        if (window.INITIAL_SAO_JOAO_DATA && window.INITIAL_SAO_JOAO_DATA.fluxoCaixa && window.INITIAL_SAO_JOAO_DATA.fluxoCaixa.length > 0) {
+          const initialMap = new Set((window.INITIAL_SAO_JOAO_DATA.fluxoCaixa || []).map(t => `${t.data}_${t.tipo}_${t.valor}_${t.descricao}`));
+          const currentCustom = (appData.fluxoCaixa || []).filter(t => !initialMap.has(`${t.data}_${t.tipo}_${t.valor}_${t.descricao}`));
+          
+          appData.fluxoCaixa = [
+            ...JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA.fluxoCaixa)),
+            ...currentCustom
+          ];
+          console.log(`Restaurados ${appData.fluxoCaixa.length} lançamentos do Fluxo de Caixa!`);
         }
       }
 
@@ -11014,6 +11010,7 @@ function renderCaixa() {
         <button class="btn btn-danger btn-sm" onclick="openNewTransactionModal('saida')" style="font-weight:700;" data-admin-only="true">
           - Saída
         </button>
+        <button class="btn btn-secondary btn-sm" onclick="restoreDefaultCashFlow()" title="Restaurar os 41 lançamentos oficiais do Fluxo de Caixa">🔄 Restaurar Padrão</button>
         <button class="btn btn-secondary btn-sm" onclick="exportCashFlowCSV()" title="Exportar CSV do livro caixa">📥 CSV</button>
         <button class="btn btn-secondary btn-sm" onclick="window.print()" title="Imprimir balancete">🖨️ Imprimir</button>
       </div>
@@ -11470,6 +11467,26 @@ function saveEditTransaction() {
   renderDashboard();
   closeModal('modal-edit-transaction');
   showToast('Lançamento atualizado com sucesso!', 'success');
+}
+
+function restoreDefaultCashFlow() {
+  if (confirm('Deseja restaurar todos os 41 lançamentos oficiais do Fluxo de Caixa a partir da base original do clube?')) {
+    if (window.INITIAL_SAO_JOAO_DATA && window.INITIAL_SAO_JOAO_DATA.fluxoCaixa) {
+      const initialMap = new Set((window.INITIAL_SAO_JOAO_DATA.fluxoCaixa || []).map(t => `${t.data}_${t.tipo}_${t.valor}_${t.descricao}`));
+      const currentCustom = (appData.fluxoCaixa || []).filter(t => !initialMap.has(`${t.data}_${t.tipo}_${t.valor}_${t.descricao}`));
+      
+      appData.fluxoCaixa = [
+        ...JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA.fluxoCaixa)),
+        ...currentCustom
+      ];
+      saveAppState(false);
+      renderCaixa();
+      renderDashboard();
+      showToast(`🎉 Fluxo de Caixa restaurado com sucesso! Total: ${appData.fluxoCaixa.length} lançamentos.`, 'success');
+    } else {
+      showToast('Base inicial de dados não encontrada.', 'error');
+    }
+  }
 }
 
 // ==========================================================================
