@@ -2299,6 +2299,211 @@ body:not(.is-master) [data-master-only="true"] {
   display: none !important;
 }
 
+/* ==========================================================================
+   MATCH SCORESHEET MODAL STYLES
+   ========================================================================== */
+.scoresheet-modal-dialog {
+  max-width: 950px !important;
+  width: 95vw;
+}
+
+.scoresheet-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.scoresheet-banner-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+}
+
+.scoresheet-team-score-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.scoresheet-big-score {
+  font-size: 2.25rem;
+  font-weight: 900;
+  color: #38bdf8;
+  line-height: 1;
+  min-width: 45px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.scoresheet-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .scoresheet-columns {
+    grid-template-columns: 1fr;
+  }
+  .scoresheet-banner-grid {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .scoresheet-team-score-box {
+    justify-content: center;
+  }
+}
+
+.scoresheet-team-panel {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.scoresheet-team-panel.team-a-panel {
+  border-top: 4px solid #2563eb;
+}
+
+.scoresheet-team-panel.team-b-panel {
+  border-top: 4px solid #475569;
+}
+
+.scoresheet-player-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  gap: 0.5rem;
+  transition: background 0.15s ease;
+}
+
+.scoresheet-player-card:hover {
+  background: #f1f5f9;
+}
+
+.scoresheet-player-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.scoresheet-player-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  border: 1px solid #cbd5e1;
+}
+
+.scoresheet-player-meta {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.scoresheet-player-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.scoresheet-player-pos {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.scoresheet-counters {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.scoresheet-pill {
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 1px 3px;
+  gap: 3px;
+}
+
+.scoresheet-pill button {
+  width: 20px;
+  height: 20px;
+  line-height: 18px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  border: none;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scoresheet-pill button:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.scoresheet-pill .pill-val {
+  font-size: 0.8rem;
+  font-weight: 800;
+  min-width: 14px;
+  text-align: center;
+}
+
+.scoresheet-pill.pill-goals {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+.scoresheet-pill.pill-goals .pill-val {
+  color: #15803d;
+}
+
+.scoresheet-pill.pill-ca {
+  border-color: #fde047;
+  background: #fefce8;
+}
+.scoresheet-pill.pill-ca .pill-val {
+  color: #ca8a04;
+}
+
+.scoresheet-pill.pill-cv {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+.scoresheet-pill.pill-cv .pill-val {
+  color: #dc2626;
+}
+
+
 </style>
   <meta name="theme-color" content="#0f2b5c">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -3833,6 +4038,83 @@ body:not(.is-master) [data-master-only="true"] {
         <button class="btn btn-primary" onclick="saveNewGuest()" style="background:#16a34a;border-color:#15803d;font-weight:700;">
           ✓ Cadastrar Convidado e Marcar Presença
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Súmula e Lançamento de Partida -->
+  <div class="modal-overlay" id="modal-match-scoresheet">
+    <div class="modal-box scoresheet-modal-dialog">
+      <div class="modal-header" style="background:linear-gradient(135deg, #0f172a, #1e293b);color:#ffffff;border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
+        <div>
+          <h3 style="margin:0;color:#ffffff;font-size:1.15rem;display:flex;align-items:center;gap:0.5rem;" id="scoresheet-modal-title">
+            <span>⚽</span> Súmula do Jogo
+          </h3>
+          <p style="margin:3px 0 0 0;font-size:0.78rem;color:#94a3b8;" id="scoresheet-modal-subtitle">
+            Lance os gols e cartões de cada atleta. O placar e a classificação serão computados automaticamente.
+          </p>
+        </div>
+        <button class="modal-close" style="color:#ffffff;" onclick="closeModal('modal-match-scoresheet')">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding:1.25rem;">
+        <!-- Scoresheet Big Live Banner -->
+        <div class="scoresheet-banner">
+          <div class="scoresheet-banner-grid">
+            <!-- Team A Banner -->
+            <div class="scoresheet-team-score-box">
+              <span style="font-size:1.8rem;" id="scoresheet-banner-icon-a">🔵</span>
+              <div style="min-width:0;flex:1;">
+                <div style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;">Time Mandante</div>
+                <strong style="font-size:1.1rem;color:#ffffff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;" id="scoresheet-banner-name-a">Time A</strong>
+              </div>
+              <div class="scoresheet-big-score" id="scoresheet-banner-score-a">0</div>
+            </div>
+
+            <!-- VS Divider -->
+            <div style="text-align:center;font-size:1rem;font-weight:800;color:#94a3b8;padding:0 0.5rem;">
+              x
+            </div>
+
+            <!-- Team B Banner -->
+            <div class="scoresheet-team-score-box" style="justify-content:flex-end;text-align:right;">
+              <div class="scoresheet-big-score" id="scoresheet-banner-score-b">0</div>
+              <div style="min-width:0;flex:1;">
+                <div style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;">Time Visitante</div>
+                <strong style="font-size:1.1rem;color:#ffffff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;" id="scoresheet-banner-name-b">Time B</strong>
+              </div>
+              <span style="font-size:1.8rem;" id="scoresheet-banner-icon-b">⚪</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scoresheet Rosters Grid (Team A vs Team B) -->
+        <div class="scoresheet-columns" id="scoresheet-rosters-container">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Penalty Shootout Section (when tied) -->
+        <div id="scoresheet-penalty-container" style="display:none;margin-top:1.25rem;background:#fffbeb;border:1.5px dashed #fcd34d;border-radius:var(--radius-md);padding:0.85rem 1rem;">
+          <div style="font-weight:800;color:#92400e;font-size:0.85rem;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.4rem;">
+            <span>🥅</span> Jogo Empatado no Tempo Normal (1 pt cada na tabela):
+          </div>
+          <div style="font-size:0.78rem;color:#78350f;margin-bottom:0.6rem;">
+            Selecione qual equipe venceu a disputa de pênaltis para definir quem joga o 3º Jogo (Ganhadores) ou 4º Jogo (Perdedores):
+          </div>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;" id="scoresheet-penalty-buttons">
+            <!-- Dynamically populated buttons -->
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-match-scoresheet')">Cancelar</button>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="saveAndFinalizeMatchScoresheet()" style="background:#15803d;border-color:#166534;font-weight:800;font-size:0.95rem;padding:0.6rem 1.25rem;box-shadow:0 2px 8px rgba(21,128,61,0.3);">
+            ✅ Salvar e Finalizar Partida
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -14951,6 +15233,327 @@ function calculateRoundStandings(round) {
   return rawStandings;
 }
 
+// ==========================================================================
+// MATCH SCORESHEET MODAL & LIVE STATS CONTROLLER
+// ==========================================================================
+let activeScoresheetMatch = null;
+
+function openMatchScoresheetModal(roundNum, matchId) {
+  if (isRoundClosed(roundNum)) {
+    showToast('Esta rodada está fechada. Abra para edição primeiro.', 'warning');
+    return;
+  }
+  const round = appData.rounds?.find(r => r.numero === roundNum);
+  if (!round || !round.times || !Array.isArray(round.times) || round.times.length < 2) {
+    showToast('É necessário ter times definidos na rodada para abrir a súmula.', 'warning');
+    return;
+  }
+
+  // Ensure default matches exist
+  if (!round.jogos || !Array.isArray(round.jogos) || round.jogos.length === 0) {
+    round.jogos = generateDefaultRoundMatches(round);
+  }
+
+  // Calculate bracket routing if 4-team format
+  if (round.times.length === 4 && round.jogos.length >= 4) {
+    const m1 = round.jogos.find(m => m.id === 1) || round.jogos[0];
+    const m2 = round.jogos.find(m => m.id === 2) || round.jogos[1];
+    const m3 = round.jogos.find(m => m.id === 3) || round.jogos[2];
+    const m4 = round.jogos.find(m => m.id === 4) || round.jogos[3];
+
+    const res1 = resolveBracketOutcome(m1, 0, 1);
+    const res2 = resolveBracketOutcome(m2, 2, 3);
+
+    if (m3) {
+      m3.timeAIndex = res1.winnerIndex;
+      m3.timeBIndex = res2.winnerIndex;
+    }
+    if (m4) {
+      m4.timeAIndex = res1.loserIndex;
+      m4.timeBIndex = res2.loserIndex;
+    }
+  }
+
+  const match = round.jogos.find(m => m.id === matchId);
+  if (!match) {
+    showToast('Partida não encontrada.', 'error');
+    return;
+  }
+
+  const teamA = round.times[match.timeAIndex];
+  const teamB = round.times[match.timeBIndex];
+
+  if (!teamA || !teamB) {
+    showToast('Os times desta partida dependem do resultado dos jogos anteriores.', 'warning');
+    return;
+  }
+
+  // Build draft of player stats for athletes in this match
+  const statsDraft = {};
+  const allPlayersInMatch = [...(teamA.jogadores || []), ...(teamB.jogadores || [])];
+
+  allPlayersInMatch.forEach(item => {
+    const pl = appData.players.find(p => p.id === item.id);
+    if (pl) {
+      const rData = pl.rodadas?.[roundNum] || { g: 0, ca: 0, cv: 0 };
+      statsDraft[pl.id] = {
+        g: Number(rData.g || 0),
+        ca: Number(rData.ca || 0),
+        cv: Number(rData.cv || 0)
+      };
+    }
+  });
+
+  activeScoresheetMatch = {
+    roundNum,
+    matchId,
+    timeAIndex: match.timeAIndex,
+    timeBIndex: match.timeBIndex,
+    statsDraft,
+    penaltyWinner: match.penaltyWinner || null
+  };
+
+  renderScoresheetContent();
+  openModal('modal-match-scoresheet');
+}
+
+function renderScoresheetContent() {
+  if (!activeScoresheetMatch) return;
+  const round = appData.rounds?.find(r => r.numero === activeScoresheetMatch.roundNum);
+  if (!round) return;
+
+  const match = (round.jogos || []).find(m => m.id === activeScoresheetMatch.matchId) || {};
+  const teamA = round.times[activeScoresheetMatch.timeAIndex] || { name: 'Time Mandante', color: '#1d4ed8', icon: '🔵', jogadores: [] };
+  const teamB = round.times[activeScoresheetMatch.timeBIndex] || { name: 'Time Visitante', color: '#475569', icon: '⚪', jogadores: [] };
+
+  // Calculate live scores from player stats draft
+  let totalGolsA = 0;
+  (teamA.jogadores || []).forEach(item => {
+    const st = activeScoresheetMatch.statsDraft[item.id];
+    if (st) totalGolsA += Number(st.g || 0);
+  });
+
+  let totalGolsB = 0;
+  (teamB.jogadores || []).forEach(item => {
+    const st = activeScoresheetMatch.statsDraft[item.id];
+    if (st) totalGolsB += Number(st.g || 0);
+  });
+
+  // Header Titles
+  const titleEl = document.getElementById('scoresheet-modal-title');
+  if (titleEl) {
+    titleEl.innerHTML = `<span>⚽</span> Súmula da Partida: ${escapeHtml(match.label || `Jogo ${match.id}`)}`;
+  }
+  const subEl = document.getElementById('scoresheet-modal-subtitle');
+  if (subEl) {
+    subEl.textContent = `${round.numero}ª Rodada • ${round.data || 'Data não definida'} • Pontos Corridos`;
+  }
+
+  // Live Banner Team A
+  const nameAEl = document.getElementById('scoresheet-banner-name-a');
+  if (nameAEl) nameAEl.textContent = teamA.name;
+  const iconAEl = document.getElementById('scoresheet-banner-icon-a');
+  if (iconAEl) iconAEl.textContent = teamA.icon || '🔵';
+  const scoreAEl = document.getElementById('scoresheet-banner-score-a');
+  if (scoreAEl) scoreAEl.textContent = totalGolsA;
+
+  // Live Banner Team B
+  const nameBEl = document.getElementById('scoresheet-banner-name-b');
+  if (nameBEl) nameBEl.textContent = teamB.name;
+  const iconBEl = document.getElementById('scoresheet-banner-icon-b');
+  if (iconBEl) iconBEl.textContent = teamB.icon || '⚪';
+  const scoreBEl = document.getElementById('scoresheet-banner-score-b');
+  if (scoreBEl) scoreBEl.textContent = totalGolsB;
+
+  // Build Rosters HTML (Team A & Team B panels)
+  const rostersContainer = document.getElementById('scoresheet-rosters-container');
+  if (rostersContainer) {
+    const buildTeamPanelHtml = (team, isTeamA) => {
+      const panelClass = isTeamA ? 'team-a-panel' : 'team-b-panel';
+      const borderTopColor = team.color || (isTeamA ? '#2563eb' : '#475569');
+
+      const playersHtml = (team.jogadores || []).map(item => {
+        const pl = appData.players.find(p => p.id === item.id) || { id: item.id, nome: item.nome || 'Atleta', foto: null, posicao: item.posicao || '' };
+        const st = activeScoresheetMatch.statsDraft[pl.id] || { g: 0, ca: 0, cv: 0 };
+        const avatarSrc = pl.foto || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+
+        return `
+          <div class="scoresheet-player-card">
+            <div class="scoresheet-player-info">
+              <img class="scoresheet-player-avatar" src="${avatarSrc}" alt="${escapeHtml(pl.nome)}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'32\' fill=\'%2394a3b8\' viewBox=\'0 0 24 24\'><circle cx=\'12\' cy=\'8\' r=\'4\'/><path d=\'M12 14c-4 0-8 2-8 4v2h16v-2c0-2-4-4-8-4z\'/></svg>'">
+              <div class="scoresheet-player-meta">
+                <span class="scoresheet-player-name" title="${escapeHtml(pl.nome)}">${escapeHtml(pl.nome)}</span>
+                <span class="scoresheet-player-pos">${escapeHtml(pl.posicao || 'Atleta')}</span>
+              </div>
+            </div>
+
+            <div class="scoresheet-counters">
+              <!-- Goals Counter -->
+              <div class="scoresheet-pill pill-goals" title="Gols marcados por ${escapeHtml(pl.nome)}">
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'g', -1)">-</button>
+                <span class="pill-val">⚽ ${st.g}</span>
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'g', 1)">+</button>
+              </div>
+
+              <!-- Yellow Card Counter -->
+              <div class="scoresheet-pill pill-ca" title="Cartões Amarelos">
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'ca', -1)">-</button>
+                <span class="pill-val">🟨 ${st.ca}</span>
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'ca', 1)">+</button>
+              </div>
+
+              <!-- Red Card Counter -->
+              <div class="scoresheet-pill pill-cv" title="Cartões Vermelhos">
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'cv', -1)">-</button>
+                <span class="pill-val">🟥 ${st.cv}</span>
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'cv', 1)">+</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="scoresheet-team-panel ${panelClass}" style="border-top-color:${borderTopColor};">
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:0.5rem;margin-bottom:0.4rem;">
+            <strong style="font-size:0.95rem;color:var(--primary-navy);display:flex;align-items:center;gap:0.4rem;">
+              <span>${team.icon || '⚽'}</span> ${escapeHtml(team.name)}
+            </strong>
+            <span class="badge badge-gray" style="font-size:0.75rem;">${(team.jogadores || []).length} atletas</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:0.4rem;max-height:380px;overflow-y:auto;padding-right:2px;">
+            ${playersHtml.length > 0 ? playersHtml : '<div style="font-size:0.8rem;color:var(--text-muted);text-align:center;padding:1rem;">Nenhum jogador escalado neste time.</div>'}
+          </div>
+        </div>
+      `;
+    };
+
+    rostersContainer.innerHTML = `
+      ${buildTeamPanelHtml(teamA, true)}
+      ${buildTeamPanelHtml(teamB, false)}
+    `;
+  }
+
+  // Penalty Section if Tied in normal time
+  const penaltyContainer = document.getElementById('scoresheet-penalty-container');
+  const penaltyButtons = document.getElementById('scoresheet-penalty-buttons');
+
+  if (penaltyContainer && penaltyButtons) {
+    if (totalGolsA === totalGolsB) {
+      penaltyContainer.style.display = 'block';
+      penaltyButtons.innerHTML = `
+        <button type="button" 
+          class="btn ${activeScoresheetMatch.penaltyWinner === 'A' ? 'btn-success' : 'btn-secondary'}" 
+          style="font-weight:700;display:flex;align-items:center;gap:4px;"
+          onclick="setScoresheetPenaltyWinner('A')">
+          ${activeScoresheetMatch.penaltyWinner === 'A' ? '✓ ' : ''}${teamA.icon || '🔵'} ${escapeHtml(teamA.name)} venceu nos Pênaltis
+        </button>
+        <button type="button" 
+          class="btn ${activeScoresheetMatch.penaltyWinner === 'B' ? 'btn-success' : 'btn-secondary'}" 
+          style="font-weight:700;display:flex;align-items:center;gap:4px;"
+          onclick="setScoresheetPenaltyWinner('B')">
+          ${activeScoresheetMatch.penaltyWinner === 'B' ? '✓ ' : ''}${teamB.icon || '⚪'} ${escapeHtml(teamB.name)} venceu nos Pênaltis
+        </button>
+      `;
+    } else {
+      penaltyContainer.style.display = 'none';
+      activeScoresheetMatch.penaltyWinner = null;
+    }
+  }
+}
+
+function adjustScoresheetPlayerStat(playerId, field, delta) {
+  if (!activeScoresheetMatch || !activeScoresheetMatch.statsDraft) return;
+  if (!activeScoresheetMatch.statsDraft[playerId]) {
+    activeScoresheetMatch.statsDraft[playerId] = { g: 0, ca: 0, cv: 0 };
+  }
+  const current = Number(activeScoresheetMatch.statsDraft[playerId][field] || 0);
+  activeScoresheetMatch.statsDraft[playerId][field] = Math.max(0, current + delta);
+  renderScoresheetContent();
+}
+
+function setScoresheetPenaltyWinner(winnerAorB) {
+  if (!activeScoresheetMatch) return;
+  if (activeScoresheetMatch.penaltyWinner === winnerAorB) {
+    activeScoresheetMatch.penaltyWinner = null;
+  } else {
+    activeScoresheetMatch.penaltyWinner = winnerAorB;
+  }
+  renderScoresheetContent();
+}
+
+function saveAndFinalizeMatchScoresheet() {
+  if (!activeScoresheetMatch) return;
+  const roundNum = activeScoresheetMatch.roundNum;
+  if (isRoundClosed(roundNum)) {
+    showToast('Esta rodada está fechada. Abra para edição primeiro.', 'warning');
+    return;
+  }
+  const round = appData.rounds?.find(r => r.numero === roundNum);
+  if (!round || !round.jogos) return;
+
+  const match = round.jogos.find(m => m.id === activeScoresheetMatch.matchId);
+  if (!match) return;
+
+  const teamA = round.times[activeScoresheetMatch.timeAIndex];
+  const teamB = round.times[activeScoresheetMatch.timeBIndex];
+
+  if (!teamA || !teamB) return;
+
+  // 1. Calculate final goals for each team
+  let totalGolsA = 0;
+  (teamA.jogadores || []).forEach(item => {
+    const st = activeScoresheetMatch.statsDraft[item.id];
+    if (st) totalGolsA += Number(st.g || 0);
+  });
+
+  let totalGolsB = 0;
+  (teamB.jogadores || []).forEach(item => {
+    const st = activeScoresheetMatch.statsDraft[item.id];
+    if (st) totalGolsB += Number(st.g || 0);
+  });
+
+  // Prompt if tied in Semifinal without penalty decision
+  if (totalGolsA === totalGolsB && (match.id === 1 || match.id === 2) && !activeScoresheetMatch.penaltyWinner) {
+    if (!confirm('A partida terminou empatada no tempo normal e nenhuma equipe foi selecionada como vencedora dos pênaltis.\n\nDeseja salvar mesmo assim?')) {
+      return;
+    }
+  }
+
+  // 2. Save individual athlete stats to player profile & round record
+  const allPlayersInMatch = [...(teamA.jogadores || []), ...(teamB.jogadores || [])];
+  allPlayersInMatch.forEach(item => {
+    const pl = appData.players.find(p => p.id === item.id);
+    if (pl) {
+      if (!pl.rodadas) pl.rodadas = {};
+      if (!pl.rodadas[roundNum]) {
+        pl.rodadas[roundNum] = { p: 1, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
+      }
+      const st = activeScoresheetMatch.statsDraft[pl.id] || { g: 0, ca: 0, cv: 0 };
+      pl.rodadas[roundNum].p = 1; // Confirmed participation in the match
+      pl.rodadas[roundNum].g = Number(st.g || 0);
+      pl.rodadas[roundNum].ca = Number(st.ca || 0);
+      pl.rodadas[roundNum].cv = Number(st.cv || 0);
+    }
+  });
+
+  // 3. Update match score & played flag
+  match.golsA = totalGolsA;
+  match.golsB = totalGolsB;
+  match.played = true;
+  match.penaltyWinner = (totalGolsA === totalGolsB) ? activeScoresheetMatch.penaltyWinner : null;
+
+  // 4. Recalculate stats & Persist
+  recalculateAllStats();
+  saveAppState(false);
+
+  closeModal('modal-match-scoresheet');
+  activeScoresheetMatch = null;
+
+  renderRodadaManager();
+  showToast(`🎉 Súmula da partida salva com sucesso! Placar: ${teamA.name} ${totalGolsA} x ${totalGolsB} ${teamB.name}`, 'success');
+}
+
 function renderRoundMatchesBoard(round) {
   const container = document.getElementById('round-matches-container');
   if (!container) return;
@@ -14981,7 +15584,7 @@ function renderRoundMatchesBoard(round) {
             <span>🏟️</span> Jogos do Sábado (Pontos Corridos • ${matches.length} Jogos • 30 min cada)
           </h3>
           <p style="font-size:0.8rem;color:var(--text-muted);margin:2px 0 0 0;">
-            1º e 2º Jogos ➔ 3º Jogo (Ganhadores) e 4º Jogo (Perdedores) • Vitória = 3 pts • Empate = 1 pt (Pênalti define quem joga o 3º ou 4º)
+            1º e 2º Jogos ➔ 3º Jogo (Ganhadores) e 4º Jogo (Perdedores) • Clique em <strong>Lançar Súmula</strong> para inserir os gols e cartões de cada atleta
           </p>
         </div>
         <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
@@ -15005,7 +15608,7 @@ function renderRoundMatchesBoard(round) {
       <div style="margin-bottom:1.5rem;">
         <div style="font-size:0.85rem;font-weight:700;color:var(--primary-dark);margin-bottom:0.6rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.4rem;">
           <span>⚽ Confrontos do Sábado (${matches.length} partidas):</span>
-          <span style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;">Use os botões + e - para lançar os gols. Nos jogos 1 e 2, se houver empate, selecione quem avançou nos pênaltis para o 3º jogo.</span>
+          <span style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;">Clique no botão de súmula para lançar os autores dos gols e cartões de cada confronto</span>
         </div>
         <div class="matches-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(330px, 1fr));gap:0.85rem;">
           ${matches.map(m => {
@@ -15015,6 +15618,32 @@ function renderRoundMatchesBoard(round) {
             const gB = Number(m.golsB) || 0;
             const isPlayed = Boolean(m.played || (gA > 0 || gB > 0) || m.penaltyWinner);
             const isTied = (gA === gB);
+
+            // Collect Scorers and Cards for Team A & B
+            const scorersA = [];
+            const scorersB = [];
+            const cardsA = [];
+            const cardsB = [];
+
+            (tA.jogadores || []).forEach(item => {
+              const pl = appData.players.find(p => p.id === item.id);
+              const rData = pl?.rodadas?.[currentRnd.numero];
+              if (rData) {
+                if (rData.g > 0) scorersA.push(`${pl.nome} (${rData.g})`);
+                if (rData.ca > 0) cardsA.push(`🟨 ${pl.nome}`);
+                if (rData.cv > 0) cardsA.push(`🟥 ${pl.nome}`);
+              }
+            });
+
+            (tB.jogadores || []).forEach(item => {
+              const pl = appData.players.find(p => p.id === item.id);
+              const rData = pl?.rodadas?.[currentRnd.numero];
+              if (rData) {
+                if (rData.g > 0) scorersB.push(`${pl.nome} (${rData.g})`);
+                if (rData.ca > 0) cardsB.push(`🟨 ${pl.nome}`);
+                if (rData.cv > 0) cardsB.push(`🟥 ${pl.nome}`);
+              }
+            });
 
             // Card highlight style
             let headerBg = '#f1f5f9';
@@ -15032,82 +15661,66 @@ function renderRoundMatchesBoard(round) {
             }
 
             return `
-              <div class="match-card" style="background:${isPlayed ? '#ffffff' : '#fcfcfc'};border:1.5px solid ${cardBorder};border-radius:var(--radius-md);padding:0.75rem 0.85rem;display:flex;flex-direction:column;gap:0.5rem;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;background:${headerBg};margin:-0.75rem -0.85rem 0.25rem -0.85rem;padding:0.4rem 0.85rem;border-top-left-radius:calc(var(--radius-md) - 1px);border-top-right-radius:calc(var(--radius-md) - 1px);border-bottom:1px solid ${cardBorder};">
-                  <strong style="color:${headerColor};font-size:0.8rem;display:flex;align-items:center;gap:4px;">
+              <div class="match-card" style="background:${isPlayed ? '#ffffff' : '#fcfcfc'};border:1.5px solid ${cardBorder};border-radius:var(--radius-md);padding:0.85rem 1rem;display:flex;flex-direction:column;gap:0.6rem;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+                <!-- Header -->
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;background:${headerBg};margin:-0.85rem -1rem 0.25rem -1rem;padding:0.45rem 1rem;border-top-left-radius:calc(var(--radius-md) - 1px);border-top-right-radius:calc(var(--radius-md) - 1px);border-bottom:1px solid ${cardBorder};">
+                  <strong style="color:${headerColor};font-size:0.82rem;display:flex;align-items:center;gap:4px;">
                     ${m.id === 3 ? '🔥 ' : (m.id === 4 ? '⚡ ' : '⚽ ')}${escapeHtml(m.label || `Jogo ${m.id}`)}
                   </strong>
-                  <span class="badge ${isPlayed ? 'badge-green' : 'badge-gray'}" style="font-size:0.65rem;padding:1px 5px;">
-                    ${isPlayed ? 'Encerrado / Em jogo' : 'Aguardando'}
+                  <span class="badge ${isPlayed ? 'badge-green' : 'badge-gray'}" style="font-size:0.65rem;padding:2px 6px;">
+                    ${isPlayed ? 'Encerrado / Súmula Lançada' : 'Aguardando Súmula'}
                   </span>
                 </div>
 
-                <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0.5rem;padding:0.35rem 0;">
+                <!-- Score Board Display -->
+                <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0.75rem;padding:0.25rem 0;">
                   <!-- Team A -->
-                  <div style="display:flex;align-items:center;gap:0.4rem;overflow:hidden;">
-                    <span style="font-size:1.15rem;">${tA.icon || '🔵'}</span>
-                    <strong style="font-size:0.82rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(tA.name)}">
-                      ${escapeHtml(tA.name)}
-                    </strong>
+                  <div style="display:flex;align-items:center;gap:0.5rem;overflow:hidden;">
+                    <span style="font-size:1.3rem;">${tA.icon || '🔵'}</span>
+                    <div style="overflow:hidden;">
+                      <strong style="font-size:0.88rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;" title="${escapeHtml(tA.name)}">
+                        ${escapeHtml(tA.name)}
+                      </strong>
+                      ${scorersA.length > 0 ? `<div style="font-size:0.68rem;color:#15803d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${scorersA.join(', ')}">⚽ ${scorersA.join(', ')}</div>` : ''}
+                      ${cardsA.length > 0 ? `<div style="font-size:0.68rem;color:#ca8a04;">${cardsA.join(' ')}</div>` : ''}
+                    </div>
                   </div>
 
-                  <!-- Score Steppers -->
-                  <div style="display:flex;align-items:center;gap:0.35rem;">
-                    <!-- Team A Stepper -->
-                    <div class="match-score-stepper">
-                      <button type="button" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustMatchScore(${currentRnd.numero}, ${m.id}, 'A', -1)"`}>-</button>
-                      <span class="match-score-val" style="color:${gA > gB ? '#15803d' : (gA < gB ? '#b91c1c' : 'var(--primary-navy)')};">${gA}</span>
-                      <button type="button" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustMatchScore(${currentRnd.numero}, ${m.id}, 'A', 1)"`}>+</button>
-                    </div>
-
-                    <span class="match-vs-divider">x</span>
-
-                    <!-- Team B Stepper -->
-                    <div class="match-score-stepper">
-                      <button type="button" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustMatchScore(${currentRnd.numero}, ${m.id}, 'B', -1)"`}>-</button>
-                      <span class="match-score-val" style="color:${gB > gA ? '#15803d' : (gB < gA ? '#b91c1c' : 'var(--primary-navy)')};">${gB}</span>
-                      <button type="button" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustMatchScore(${currentRnd.numero}, ${m.id}, 'B', 1)"`}>+</button>
-                    </div>
+                  <!-- Match Big Score Box -->
+                  <div style="display:flex;align-items:center;gap:0.4rem;background:#f1f5f9;padding:4px 12px;border-radius:8px;border:1px solid #cbd5e1;">
+                    <span style="font-size:1.4rem;font-weight:900;color:${gA > gB ? '#15803d' : (gA < gB ? '#b91c1c' : 'var(--primary-navy)')};">${gA}</span>
+                    <span style="font-size:0.9rem;font-weight:800;color:var(--text-muted);">x</span>
+                    <span style="font-size:1.4rem;font-weight:900;color:${gB > gA ? '#15803d' : (gB < gA ? '#b91c1c' : 'var(--primary-navy)')};">${gB}</span>
                   </div>
 
                   <!-- Team B -->
-                  <div style="display:flex;align-items:center;justify-content:flex-end;gap:0.4rem;overflow:hidden;text-align:right;">
-                    <strong style="font-size:0.82rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(tB.name)}">
-                      ${escapeHtml(tB.name)}
-                    </strong>
-                    <span style="font-size:1.15rem;">${tB.icon || '⚪'}</span>
+                  <div style="display:flex;align-items:center;justify-content:flex-end;gap:0.5rem;overflow:hidden;text-align:right;">
+                    <div style="overflow:hidden;">
+                      <strong style="font-size:0.88rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;" title="${escapeHtml(tB.name)}">
+                        ${escapeHtml(tB.name)}
+                      </strong>
+                      ${scorersB.length > 0 ? `<div style="font-size:0.68rem;color:#15803d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${scorersB.join(', ')}">⚽ ${scorersB.join(', ')}</div>` : ''}
+                      ${cardsB.length > 0 ? `<div style="font-size:0.68rem;color:#ca8a04;">${cardsB.join(' ')}</div>` : ''}
+                    </div>
+                    <span style="font-size:1.3rem;">${tB.icon || '⚪'}</span>
                   </div>
                 </div>
 
-                <!-- Penalty Shootout Controls if Tied (Jogos 1 e 2) -->
-                ${isTied ? `
-                  <div class="penalty-selector-bar">
-                    <span style="font-weight:700;color:#92400e;display:flex;align-items:center;gap:3px;white-space:nowrap;">
-                      <span>🥅</span> Empate no tempo normal (1 pt cada):
-                    </span>
-                    <div style="display:flex;gap:0.35rem;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;">
-                      <button type="button" 
-                        class="penalty-btn ${m.penaltyWinner === 'A' ? 'active' : ''}" 
-                        ${isClosed ? 'disabled' : `onclick="setMatchPenaltyWinner(${currentRnd.numero}, ${m.id}, 'A')"`}
-                        title="Definir ${escapeHtml(tA.name)} como vencedor dos pênaltis">
-                        ${m.penaltyWinner === 'A' ? '✓ ' : ''}${escapeHtml(tA.name)} venceu pênaltis
-                      </button>
-                      <button type="button" 
-                        class="penalty-btn ${m.penaltyWinner === 'B' ? 'active' : ''}" 
-                        ${isClosed ? 'disabled' : `onclick="setMatchPenaltyWinner(${currentRnd.numero}, ${m.id}, 'B')"`}
-                        title="Definir ${escapeHtml(tB.name)} como vencedor dos pênaltis">
-                        ${m.penaltyWinner === 'B' ? '✓ ' : ''}${escapeHtml(tB.name)} venceu pênaltis
-                      </button>
-                    </div>
-                  </div>
-                ` : ''}
-
                 ${(m.penaltyWinner && isTied) ? `
-                  <div style="font-size:0.73rem;color:#16a34a;font-weight:700;display:flex;align-items:center;gap:4px;padding:1px 0;">
-                    <span>🥅</span> Pênaltis: <u>${escapeHtml(m.penaltyWinner === 'A' ? tA.name : tB.name)}</u> avançou como ganhador! (1 pt para cada na tabela)
+                  <div style="font-size:0.75rem;color:#16a34a;font-weight:700;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:3px 6px;text-align:center;">
+                    🥅 Pênaltis: <u>${escapeHtml(m.penaltyWinner === 'A' ? tA.name : tB.name)}</u> avançou para o 3º Jogo! (1 pt cada na tabela)
                   </div>
                 ` : ''}
 
+                <!-- Big Action Button to Open Scoresheet Modal -->
+                <div style="margin-top:0.25rem;">
+                  <button type="button" 
+                    class="btn ${isPlayed ? 'btn-secondary' : 'btn-primary'} btn-sm" 
+                    ${isClosed ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : `onclick="openMatchScoresheetModal(${currentRnd.numero}, ${m.id})"`} 
+                    style="width:100%;font-weight:800;display:flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.45rem 0.75rem;font-size:0.82rem;${!isPlayed ? 'background:#1d4ed8;border-color:#1e40af;' : ''}">
+                    <span>📝</span> ${isPlayed ? 'Editar Súmula da Partida (Gols e Cartões)' : 'Lançar Súmula da Partida (Gols e Cartões)'}
+                  </button>
+                </div>
               </div>
             `;
           }).join('')}
