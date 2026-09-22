@@ -2736,13 +2736,8 @@ body:not(.is-master) [data-master-only="true"] {
       <!-- Column Totalizer Bar (Totalizador por Coluna) -->
       <div id="round-totalizer-container"></div>
 
-      <!-- Match Entry Players List -->
-      <div class="table-container" style="border-radius:var(--radius-md);overflow:hidden;">
-        <div id="round-players-list"></div>
-      </div>
-
-      <!-- Round Matches Board & Tournament Standings Container -->
-      <div id="round-matches-container"></div>
+      <!-- Match Entry Players List & Matches Board -->
+      <div id="round-players-list"></div>
 
       <div style="margin-top:1.5rem;text-align:right;" data-admin-only="true">
         <button class="btn btn-primary" onclick="saveRoundData()" style="padding:0.75rem 2rem;font-size:1rem;">
@@ -7976,6 +7971,7 @@ function renderRodadaManager() {
   `;
 
   listContainer.innerHTML = timesBoardHtml + `
+    <div id="round-matches-container" style="margin-top:1.25rem;"></div>
     <details style="margin-top:1.5rem;background:#ffffff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem;" ${hasTimes ? '' : 'open'}>
       <summary style="font-weight:800;font-size:0.95rem;color:var(--primary-navy);cursor:pointer;padding:0.25rem 0.5rem;display:flex;align-items:center;gap:0.5rem;user-select:none;">
         <span>📋</span> Lista Geral e Registro de Atletas da Rodada (${sortedPlayers.length} atletas) • <span style="font-size:0.8rem;color:var(--text-muted);font-weight:normal;">Clique nas colunas para ordenar (Campeão, Gols, Presença, etc.)</span>
@@ -15560,7 +15556,21 @@ function renderRoundMatchesBoard(round) {
 
   const currentRnd = round || appData.rounds?.find(r => r.numero === currentRoundNum);
   if (!currentRnd || !currentRnd.times || !Array.isArray(currentRnd.times) || currentRnd.times.length < 2) {
-    container.innerHTML = '';
+    const rndNum = currentRnd ? currentRnd.numero : currentRoundNum;
+    container.innerHTML = `
+      <div style="background:linear-gradient(135deg, #eff6ff, #f8fafc);border:2px dashed #3b82f6;border-radius:var(--radius-lg);padding:1.5rem 1.25rem;text-align:center;margin:1rem 0;box-shadow:0 2px 8px rgba(59,130,246,0.06);">
+        <div style="font-size:2.2rem;margin-bottom:0.35rem;">⚽ ➔ 🎲</div>
+        <h4 style="font-size:1.15rem;font-weight:800;color:var(--primary-navy);margin:0 0 0.35rem 0;">
+          Confrontos e Súmula da Partida (Gols e Cartões)
+        </h4>
+        <p style="font-size:0.88rem;color:var(--text-muted);max-width:620px;margin:0 auto 1.15rem auto;line-height:1.5;">
+          Para liberar o chaveamento dos <strong>4 jogos do sábado</strong> e os botões de <strong>📝 Lançar Súmula da Partida (Gols e Cartões)</strong>, realize o sorteio dos 4 times ou monte as equipes desta rodada.
+        </p>
+        <button class="btn btn-primary" onclick="openSorteadorTimesModal()" style="font-weight:800;padding:0.6rem 1.4rem;font-size:0.95rem;box-shadow:0 4px 12px rgba(37,99,235,0.25);display:inline-flex;align-items:center;gap:0.4rem;">
+          <span>🎲</span> Sortear / Formar Times da Rodada ${rndNum}
+        </button>
+      </div>
+    `;
     return;
   }
 
