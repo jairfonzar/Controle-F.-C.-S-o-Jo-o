@@ -4230,64 +4230,120 @@ function initCloudSync() {
 // ==========================================================================
 // BULLETPROOF TWO-WAY MERGE ENGINE FOR CROSS-DEVICE SYNC
 // ==========================================================================
-function mergeAppState(local, remote) {
+function normalizeDateStr(str) {
+  if (!str) return '';
+  let clean = str.trim().replace(/-/g, '/').replace(/\./g, '/');
+  const parts = clean.split('/');
+  if (parts.length === 3) {
+    let day = parts[0].padStart(2, '0');
+    let month = parts[1].padStart(2, '0');
+    let year = parts[2];
+    if (year.length === 2) {
+      year = '20' + year;
+    }
+    return `${day}/${month}/${year}`;
+  }
+  return clean;
+}
+
+function mergeAppState(local, remote, preferLocal = true) {
   if (!local && !remote) return null;
   if (!local) return JSON.parse(JSON.stringify(remote));
   if (!remote) return JSON.parse(JSON.stringify(local));
 
-  const merged = JSON.parse(JSON.stringify(local));
+  const merged = JSON.parse(JSON.stringify(preferLocal ? local : remote));
 
-  // 1. FLUXO DE CAIXA: Additive union of all entries (NEVER drop any entry!)
+  // Deleted transactions tracking
+  const deletedIds = new Set([
+    ...(local.deletedTransactionIds || []),
+    ...(remote.deletedTransactionIds || [])
+  ]);
+  merged.deletedTransactionIds = Array.from(deletedIds);
+
+  // 1. FLUXO DE CAIXA: Additive union of all entries with precedence for newer/local edits
   const existingMap = new Map();
-  (local.fluxoCaixa || []).forEach(item => {
-    const key = item.id ? `id_${item.id}` : `sig_${item.data}_${item.tipo}_${item.valor}_${item.descricao}`;
-    existingMap.set(key, item);
-  });
-  (remote.fluxoCaixa || []).forEach(item => {
-    const key = item.id ? `id_${item.id}` : `sig_${item.data}_${item.tipo}_${item.valor}_${item.descricao}`;
-    if (!existingMap.has(key)) {
-      existingMap.set(key, item);
-    } else {
-      const existing = existingMap.get(key);
-      existingMap.set(key, { ...existing, ...item });
-    }
-  });
+  
+  if (preferLocal) {
+    // Put remote first, then local overwrites matching entries with latest edits
+    (remote.fluxoCaixa || []).forEach(item => {
+      const key = item.id ? `id_${item.id}` : `sig_${item.data}_${item.tipo}_${item.valor}_${item.descricao}`;
+      if (!deletedIds.has(item.id) && !deletedIds.has(String(item.id))) {
+        existingMap.set(key, item);
+      }
+    });
+    (local.fluxoCaixa || []).forEach(item => {
+      const key = item.id ? `id_${item.id}` : `sig_${item.data}_${item.tipo}_${item.valor}_${item.descricao}`;
+      if (!deletedIds.has(item.id) && !deletedIds.has(String(item.id))) {
+        if (existingMap.has(key)) {
+          const remoteItem = existingMap.get(key);
+          existingMap.set(key, { ...remoteItem, ...item });
+        } else {
+          existingMap.set(key, item);
+        }
+      }
+    });
+  } else {
+    // Remote incoming update: local first, then remote updates
+    (local.fluxoCaixa || []).forEach(item => {
+      const key = item.id ? `id_${item.id}` : `sig_${item.data}_${item.tipo}_${item.valor}_${item.descricao}`;
+      if (!deletedIds.has(item.id) && !deletedIds.has(String(item.id))) {
+        existingMap.set(key, item);
+      }
+    });
+    (remote.fluxoCaixa || []).forEach(item => {
+      const key = item.id ? `id_${item.id}` : `sig_${item.data}_${item.tipo}_${item.valor}_${item.descricao}`;
+      if (!deletedIds.has(item.id) && !deletedIds.has(String(item.id))) {
+        if (existingMap.has(key)) {
+          const localItem = existingMap.get(key);
+          existingMap.set(key, { ...localItem, ...item });
+        } else {
+          existingMap.set(key, item);
+        }
+      }
+    });
+  }
+
   merged.fluxoCaixa = Array.from(existingMap.values());
   merged.fluxoCaixa.sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
 
   // 2. PLAYERS: Merge mensalidades (paid status is sticky and never lost!), custom qualities, photos, phones
   const playerMap = new Map();
-  (local.players || []).forEach(p => playerMap.set(Number(p.id), { ...p }));
+  const basePlayers = preferLocal ? remote.players || [] : local.players || [];
+  const overPlayers = preferLocal ? local.players || [] : remote.players || [];
 
-  (remote.players || []).forEach(rp => {
-    const pId = Number(rp.id);
+  basePlayers.forEach(p => playerMap.set(Number(p.id), { ...p }));
+
+  overPlayers.forEach(p => {
+    const pId = Number(p.id);
     if (!playerMap.has(pId)) {
-      playerMap.set(pId, { ...rp });
+      playerMap.set(pId, { ...p });
     } else {
-      const lp = playerMap.get(pId);
-      const mergedMens = { ...(lp.mensalidades || {}) };
-      if (rp.mensalidades) {
-        Object.keys(rp.mensalidades).forEach(mKey => {
-          const lm = mergedMens[mKey];
-          const rm = rp.mensalidades[mKey];
-          if (rm && rm.status === 'pago') {
-            mergedMens[mKey] = { ...rm };
-          } else if (!lm || lm.status !== 'pago') {
-            if (rm) mergedMens[mKey] = { ...rm };
+      const baseP = playerMap.get(pId);
+      const mergedMens = { ...(baseP.mensalidades || {}) };
+      if (p.mensalidades) {
+        Object.keys(p.mensalidades).forEach(mKey => {
+          const bm = mergedMens[mKey];
+          const om = p.mensalidades[mKey];
+          if (om && om.status === 'pago') {
+            mergedMens[mKey] = { ...om };
+          } else if (bm && bm.status === 'pago') {
+            mergedMens[mKey] = { ...bm };
+          } else if (om) {
+            mergedMens[mKey] = { ...om };
           }
         });
       }
-      lp.mensalidades = mergedMens;
 
-      if (rp.foto && !lp.foto) lp.foto = rp.foto;
-      if (rp.telefone && !lp.telefone) lp.telefone = rp.telefone;
-      if (rp.qualidade !== undefined && rp.qualidade !== null) {
-        lp.qualidade = rp.qualidade;
-      }
-      if (rp.posicao && rp.posicao !== lp.posicao) {
-        lp.posicao = rp.posicao;
-      }
-      playerMap.set(pId, lp);
+      const mergedP = {
+        ...baseP,
+        ...p,
+        mensalidades: mergedMens
+      };
+
+      if (!p.foto && baseP.foto) mergedP.foto = baseP.foto;
+      if (!p.telefone && baseP.telefone) mergedP.telefone = baseP.telefone;
+
+      playerMap.set(pId, mergedP);
     }
   });
   merged.players = Array.from(playerMap.values()).sort((a, b) => Number(a.seq || a.id) - Number(b.seq || b.id));
@@ -11517,6 +11573,9 @@ function deleteTransaction(id) {
     return;
   }
   if (!confirm('Tem certeza que deseja excluir este lançamento do Fluxo de Caixa?')) return;
+  if (!appData.deletedTransactionIds) appData.deletedTransactionIds = [];
+  appData.deletedTransactionIds.push(id);
+  appData.deletedTransactionIds.push(String(id));
   appData.fluxoCaixa = (appData.fluxoCaixa || []).filter(t => t.id !== id && String(t.id) !== String(id));
   saveAppState(true);
   renderCaixa();
@@ -11536,7 +11595,7 @@ function openEditTransactionModal(transactionId) {
 
   document.getElementById('trans-edit-id').value = t.id;
   document.getElementById('trans-edit-tipo').value = t.tipo || 'entrada';
-  document.getElementById('trans-edit-data').value = t.data || '';
+  document.getElementById('trans-edit-data').value = normalizeDateStr(t.data || '');
   document.getElementById('trans-edit-valor').value = t.valor || '';
   document.getElementById('trans-edit-desc').value = t.descricao || '';
 
@@ -11570,7 +11629,7 @@ function saveEditTransaction() {
   if (!t) return;
 
   const tipo = document.getElementById('trans-edit-tipo').value;
-  const dataStr = document.getElementById('trans-edit-data').value.trim();
+  let dataStr = document.getElementById('trans-edit-data').value.trim();
   const valor = parseFloat(document.getElementById('trans-edit-valor').value);
   const categoria = document.getElementById('trans-edit-categoria').value;
   const desc = document.getElementById('trans-edit-desc').value.trim();
@@ -11584,17 +11643,37 @@ function saveEditTransaction() {
     return;
   }
 
+  // Automatic date normalization (e.g. 21/09/26 -> 21/09/2026)
+  dataStr = normalizeDateStr(dataStr);
+
   t.tipo = tipo;
   t.data = dataStr;
   t.valor = valor;
   t.categoria = categoria;
   t.descricao = desc;
+  t._updatedAt = Date.now();
+
+  // If this transaction is a membership fee, update the corresponding player's dues payment date
+  if (t.categoria === 'Mensalidade' && t.tipo === 'entrada') {
+    (appData.players || []).forEach(p => {
+      if (t.descricao.toLowerCase().includes(p.nome.toLowerCase())) {
+        MESES.forEach(m => {
+          if (t.descricao.toLowerCase().includes(m.nome.toLowerCase()) || t.descricao.toLowerCase().includes(m.abrev.toLowerCase())) {
+            if (p.mensalidades && p.mensalidades[m.key]) {
+              p.mensalidades[m.key].dataPagamento = dataStr;
+              p.mensalidades[m.key].status = 'pago';
+            }
+          }
+        });
+      }
+    });
+  }
 
   saveAppState(true);
   renderCaixa();
   renderDashboard();
   closeModal('modal-edit-transaction');
-  showToast('Lançamento atualizado com sucesso!', 'success');
+  showToast(`Lançamento atualizado! Data fixada em ${dataStr}.`, 'success');
 }
 
 function restoreDefaultCashFlow() {
