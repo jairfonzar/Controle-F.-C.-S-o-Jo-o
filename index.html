@@ -4440,7 +4440,8 @@ async function forcePullFromCloud() {
 async function hardResetFromCloud() {
   updateCloudSyncBadge('syncing', 'Baixando da Nuvem...');
   try {
-    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at&_t=${Date.now()}`, {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at`, {
+      cache: 'no-store',
       headers: {
         'apikey': SUPABASE_CONFIG.anonKey,
         'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
@@ -4472,7 +4473,8 @@ async function hardResetFromCloud() {
 async function pullFromCloud(isInitial = false) {
   if (isSyncingToCloud) return;
   try {
-    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at&_t=${Date.now()}`, {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at`, {
+      cache: 'no-store',
       headers: {
         'apikey': SUPABASE_CONFIG.anonKey,
         'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
@@ -4517,7 +4519,8 @@ async function pushToCloud(dataToPush) {
     // 1. Fetch latest state from cloud first and merge to guarantee zero data loss
     let mergedPayload = dataToPush;
     try {
-      const getRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at&_t=${Date.now()}`, {
+      const getRes = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at`, {
+        cache: 'no-store',
         headers: {
           'apikey': SUPABASE_CONFIG.anonKey,
           'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
