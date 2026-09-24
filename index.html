@@ -11819,24 +11819,35 @@ function exportAniversariantesICS() {
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10);
       if (day > 0 && day <= 31 && month > 0 && month <= 12) {
-        const startStr = `2026${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
-        const dt = new Date(2026, month - 1, day + 1);
-        const endStr = `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
-        const summary = `🎂 Aniversário de ${p.nome} - São João`;
-        const description = `Hoje é aniversário de ${p.nome} (${p.posicao || 'Sócio'} do E.C. São João).\\nLembre-se de enviar os parabéns no grupo do WhatsApp!`;
+        const dayStr = String(day).padStart(2, '0');
+        const monthStr = String(month).padStart(2, '0');
+        const startStr = `2026${monthStr}${dayStr}T063000`;
+        const endStr = `2026${monthStr}${dayStr}T070000`;
+        const summary = `🎂 Aniversário: ${p.nome} - E.C. São João`;
+        const phone = p.telefone ? p.telefone : 'Não informado';
+        const cleanPhone = p.telefone ? p.telefone.replace(/\D/g, '') : '';
+        const waPlayerLink = cleanPhone ? `https://wa.me/55${cleanPhone}` : '';
+        const description = `🎉 HOJE É ANIVERSÁRIO DE: ${p.nome} (${p.posicao || 'Sócio'})\\n` +
+          `📱 Telefone do Sócio: ${phone}\\n\\n` +
+          `⚡ MISSÃO DAS 06:30 (Envio de Parabéns no Grupo):\\n` +
+          `1) Gerar imagem personalizada do aniversariante com IA\\n` +
+          `2) Postar imagem + parabéns no grupo do São João\\n` +
+          `3) Enviar no WhatsApp para Wellington (+55 15 99773-6924) para alinhamento\\n\\n` +
+          `👉 WhatsApp Wellington: https://wa.me/5515997736924\\n` +
+          (waPlayerLink ? `👉 WhatsApp do Aniversariante: ${waPlayerLink}\\n` : '');
 
         events.push(`BEGIN:VEVENT
 UID:bday_socio_${p.id}_2026@saojoaofutebol.com.br
 DTSTAMP:${nowStr}
-DTSTART;VALUE=DATE:${startStr}
-DTEND;VALUE=DATE:${endStr}
+DTSTART;TZID=America/Sao_Paulo:${startStr}
+DTEND;TZID=America/Sao_Paulo:${endStr}
 SUMMARY:${summary}
 DESCRIPTION:${description}
 RRULE:FREQ=YEARLY
 BEGIN:VALARM
-TRIGGER:-PT0H
 ACTION:DISPLAY
-DESCRIPTION:Lembrete de Aniversário - E.C. São João
+DESCRIPTION:🎂 Lembrete 06:30: Enviar parabéns + imagem IA para ${p.nome} no grupo do São João!
+TRIGGER:-PT0M
 END:VALARM
 END:VEVENT`);
       }
@@ -11848,24 +11859,35 @@ END:VEVENT`);
     if (parc.dia && parc.mes) {
       const day = parc.dia;
       const month = parc.mes;
-      const startStr = `2026${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
-      const dt = new Date(2026, month - 1, day + 1);
-      const endStr = `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
-      const summary = `🎂 Aniversário de ${parc.nome} (Parceiro) - São João`;
-      const description = `Hoje é aniversário de ${parc.nome} (${parc.categoria || 'Parceiro do Clube'} do E.C. São João).\\nLembre-se de enviar os parabéns no grupo do WhatsApp!`;
+      const dayStr = String(day).padStart(2, '0');
+      const monthStr = String(month).padStart(2, '0');
+      const startStr = `2026${monthStr}${dayStr}T063000`;
+      const endStr = `2026${monthStr}${dayStr}T070000`;
+      const summary = `🎂 Aniversário: ${parc.nome} (Parceiro) - E.C. São João`;
+      const phone = parc.telefone ? parc.telefone : 'Não informado';
+      const cleanPhone = parc.telefone ? parc.telefone.replace(/\D/g, '') : '';
+      const waPlayerLink = cleanPhone ? `https://wa.me/55${cleanPhone}` : '';
+      const description = `🎉 HOJE É ANIVERSÁRIO DE: ${parc.nome} (${parc.categoria || 'Parceiro do Clube'})\\n` +
+        `📱 Telefone: ${phone}\\n\\n` +
+        `⚡ MISSÃO DAS 06:30 (Envio de Parabéns no Grupo):\\n` +
+        `1) Gerar imagem personalizada do aniversariante com IA\\n` +
+        `2) Postar imagem + parabéns no grupo do São João\\n` +
+        `3) Enviar no WhatsApp para Wellington (+55 15 99773-6924) para alinhamento\\n\\n` +
+        `👉 WhatsApp Wellington: https://wa.me/5515997736924\\n` +
+        (waPlayerLink ? `👉 WhatsApp do Aniversariante: ${waPlayerLink}\\n` : '');
 
       events.push(`BEGIN:VEVENT
 UID:bday_parceiro_${parc.id}_2026@saojoaofutebol.com.br
 DTSTAMP:${nowStr}
-DTSTART;VALUE=DATE:${startStr}
-DTEND;VALUE=DATE:${endStr}
+DTSTART;TZID=America/Sao_Paulo:${startStr}
+DTEND;TZID=America/Sao_Paulo:${endStr}
 SUMMARY:${summary}
 DESCRIPTION:${description}
 RRULE:FREQ=YEARLY
 BEGIN:VALARM
-TRIGGER:-PT0H
 ACTION:DISPLAY
-DESCRIPTION:Lembrete de Aniversário - E.C. São João
+DESCRIPTION:🎂 Lembrete 06:30: Enviar parabéns + imagem IA para ${parc.nome} no grupo do São João!
+TRIGGER:-PT0M
 END:VALARM
 END:VEVENT`);
     }
@@ -11878,6 +11900,16 @@ CALSCALE:GREGORIAN
 METHOD:PUBLISH
 X-WR-CALNAME:Aniversários - E.C. São João
 X-WR-TIMEZONE:America/Sao_Paulo
+BEGIN:VTIMEZONE
+TZID:America/Sao_Paulo
+X-LIC-LOCATION:America/Sao_Paulo
+BEGIN:STANDARD
+TZOFFSETFROM:-0300
+TZOFFSETTO:-0300
+TZNAME:BRT
+DTSTART:19700101T000000
+END:STANDARD
+END:VTIMEZONE
 ${events.join('\n')}
 END:VCALENDAR`;
 
@@ -11891,7 +11923,7 @@ END:VCALENDAR`;
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  showToast('Arquivo de agenda (.ics) baixado! Importe na sua Google Agenda para receber lembretes.', 'success');
+  showToast('Arquivo de agenda (.ics) baixado com alertas às 06:30! Importe no Google Agenda.', 'success');
 }
 
 function openGoogleCalendarForPerson(targetId, isParceiro) {
@@ -11927,15 +11959,29 @@ function openGoogleCalendarForPerson(targetId, isParceiro) {
     return;
   }
 
-  const startStr = `2026${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
-  const dt = new Date(2026, month - 1, day + 1);
-  const endStr = `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
+  const dayStr = String(day).padStart(2, '0');
+  const monthStr = String(month).padStart(2, '0');
+  const startStr = `2026${monthStr}${dayStr}T063000`;
+  const endStr = `2026${monthStr}${dayStr}T070000`;
 
   const role = isParceiro ? (person.categoria || 'Parceiro do Clube') : (person.posicao || 'Sócio Ativo');
-  const title = encodeURIComponent(`🎂 Aniversário de ${person.nome} - São João`);
-  const details = encodeURIComponent(`Aniversário de ${person.nome} (${role} do E.C. São João - Tietê/SP).\n\nLembrete: Enviar mensagem de felicitações no grupo do São João! 🎉`);
+  const phone = person.telefone ? person.telefone : 'Não informado';
+  const cleanPhone = person.telefone ? person.telefone.replace(/\D/g, '') : '';
+  const waPlayerLink = cleanPhone ? `https://wa.me/55${cleanPhone}` : '';
 
-  const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&recur=RRULE:FREQ%3DYEARLY&details=${details}`;
+  const title = encodeURIComponent(`🎂 Aniversário: ${person.nome} - E.C. São João`);
+  const details = encodeURIComponent(
+    `🎉 HOJE É ANIVERSÁRIO DE: ${person.nome} (${role})\n` +
+    `📱 Telefone: ${phone}\n\n` +
+    `⚡ MISSÃO DAS 06:30 (Envio de Parabéns no Grupo):\n` +
+    `1) Gerar imagem personalizada do aniversariante com IA\n` +
+    `2) Postar imagem + parabéns no grupo do São João\n` +
+    `3) Enviar no WhatsApp para Wellington (+55 15 99773-6924)\n\n` +
+    `👉 WhatsApp Wellington: https://wa.me/5515997736924\n` +
+    (waPlayerLink ? `👉 WhatsApp do Aniversariante: ${waPlayerLink}\n` : '')
+  );
+
+  const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&ctz=America/Sao_Paulo&recur=RRULE:FREQ%3DYEARLY&details=${details}`;
   window.open(gCalUrl, '_blank');
 }
 
