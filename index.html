@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Esporte Clube São João - Tietê/SP | Gestão e Controles 2026</title>
   <style>
 /* ==========================================================================
@@ -2521,12 +2524,15 @@ body:not(.is-master) [data-master-only="true"] {
         <div class="club-info">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <h1 style="margin:0;">Esporte Clube São João</h1>
-            <span id="cloud-sync-status-badge" style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:700;background:#fef9c3;color:#854d0e;border:1px solid #fde047;">🟡 Conectando à Nuvem...</span>
+            <span id="cloud-sync-status-badge" onclick="hardResetFromCloud()" style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:700;background:#fef9c3;color:#854d0e;border:1px solid #fde047;cursor:pointer;" title="Clique para sincronizar com a Nuvem">🟡 Conectando à Nuvem...</span>
           </div>
           <p>E.C.S.J. • Tietê / SP • Estatísticas & Gestão <span id="header-ano-temporada">2026</span></p>
         </div>
       </div>
       <div class="header-actions">
+        <button class="btn-header" onclick="hardResetFromCloud()" style="background:#0284c7;color:#ffffff;font-weight:800;border:1px solid #0369a1;" title="Baixar dados mais recentes da nuvem imediatamente">
+          🔄 Atualizar Nuvem
+        </button>
         <button class="btn-header" id="btn-admin-auth" onclick="handleAdminAuthButtonClick()" style="background:#f59e0b;color:#0f2b5c;font-weight:800;border:1px solid #d97706;" title="Acesso restrito da diretoria com senha">
           🔒 Acesso Diretoria
         </button>
@@ -4221,10 +4227,30 @@ function initCloudSync() {
     }
   }
 
-  // Polling every 20 seconds for cross-device synchronization (Realtime subscription handles instant pushes)
+  // Polling every 15 seconds for cross-device synchronization (Realtime subscription handles instant pushes)
   setInterval(() => {
     pullFromCloud(false);
-  }, 20000);
+  }, 15000);
+
+  // Auto-sync when user returns to tab / unlocks mobile screen / gains focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      console.log('Tab visible: syncing with cloud...');
+      pullFromCloud(false);
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    pullFromCloud(false);
+  });
+
+  window.addEventListener('pageshow', () => {
+    pullFromCloud(false);
+  });
+
+  window.addEventListener('online', () => {
+    pullFromCloud(false);
+  });
 }
 
 // ==========================================================================
@@ -4357,8 +4383,20 @@ function mergeAppState(local, remote, preferLocal = true) {
       roundsMap.set(rNum, { ...rr });
     } else {
       const lr = roundsMap.get(rNum);
-      if (rr.times && (!lr.times || rr.times.length > 0)) {
-        lr.times = rr.times;
+      if (preferLocal) {
+        if (lr.times && (!rr.times || lr.times.length > 0)) {
+          // keep local times
+        } else if (rr.times) {
+          lr.times = rr.times;
+        }
+      } else {
+        if (rr.times) {
+          lr.times = rr.times;
+        }
+        if (rr.status) lr.status = rr.status;
+        if (rr.campeao) lr.campeao = rr.campeao;
+        if (rr.lanterna) lr.lanterna = rr.lanterna;
+        if (rr.jogos) lr.jogos = rr.jogos;
       }
       if (rr.presencas && Array.isArray(rr.presencas)) {
         const presSet = new Set([...(lr.presencas || []), ...rr.presencas]);
@@ -4371,15 +4409,23 @@ function mergeAppState(local, remote, preferLocal = true) {
 
   // 4. ANIVERSARIANTES PARCEIROS
   const parcMap = new Map();
-  (local.aniversariantesParceiros || []).forEach(p => parcMap.set(p.id || p.nome, p));
-  (remote.aniversariantesParceiros || []).forEach(p => {
+  const baseParc = preferLocal ? (remote.aniversariantesParceiros || []) : (local.aniversariantesParceiros || []);
+  const overParc = preferLocal ? (local.aniversariantesParceiros || []) : (remote.aniversariantesParceiros || []);
+  baseParc.forEach(p => parcMap.set(p.id || p.nome, { ...p }));
+  overParc.forEach(p => {
     const key = p.id || p.nome;
-    if (!parcMap.has(key)) parcMap.set(key, p);
+    if (!parcMap.has(key)) {
+      parcMap.set(key, { ...p });
+    } else {
+      parcMap.set(key, { ...parcMap.get(key), ...p });
+    }
   });
   merged.aniversariantesParceiros = Array.from(parcMap.values());
 
   // 5. CONFIGURACOES
-  merged.configuracoes = { ...(remote.configuracoes || {}), ...(local.configuracoes || {}) };
+  merged.configuracoes = preferLocal
+    ? { ...(remote.configuracoes || {}), ...(local.configuracoes || {}) }
+    : { ...(local.configuracoes || {}), ...(remote.configuracoes || {}) };
 
   return merged;
 }
@@ -4389,6 +4435,38 @@ async function forcePullFromCloud() {
   await pullFromCloud(false);
   renderApp();
   showToast('Nuvem sincronizada com sucesso!', 'success');
+}
+
+async function hardResetFromCloud() {
+  updateCloudSyncBadge('syncing', 'Baixando da Nuvem...');
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/app_state?id=eq.${SUPABASE_CONFIG.rowId}&select=payload,updated_at&_t=${Date.now()}`, {
+      headers: {
+        'apikey': SUPABASE_CONFIG.anonKey,
+        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.length > 0 && data[0].payload) {
+        appData = data[0].payload;
+        localStorage.setItem('SAO_JOAO_APP_DATA_2026', JSON.stringify(appData));
+        updateAutomaticDuesStatus();
+        recalculateAllStats();
+        renderApp();
+        updateCloudSyncBadge('online', 'Nuvem Sincronizada');
+        showToast('✅ Aplicativo 100% atualizado com a Nuvem!', 'success');
+        return;
+      }
+    }
+    showToast('Aviso: Não foi possível obter dados da nuvem no momento.', 'warning');
+  } catch (err) {
+    console.error('Hard reset error:', err);
+    showToast('Erro ao conectar com a nuvem.', 'error');
+  }
 }
 
 async function pullFromCloud(isInitial = false) {
@@ -13021,6 +13099,35 @@ function renderConfiguracoes() {
         </div>
 
         <button class="btn btn-primary" style="margin-top:0.25rem;" onclick="saveAdminPasswordConfig()">Salvar Novas Senhas</button>
+      </div>
+
+      <!-- Card: Sincronização em Nuvem & Multi-Dispositivos -->
+      <div class="kpi-card" style="display:block;grid-column:1/-1;background:linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);border:1.5px solid #38bdf8;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem;">
+          <div>
+            <h3 style="margin-bottom:0.25rem;font-size:1.15rem;color:#0369a1;display:flex;align-items:center;gap:0.5rem;">
+              ☁️ Sincronização em Nuvem (Multi-Dispositivos)
+              <span id="cfg-cloud-status" class="badge badge-green" style="font-size:0.8rem;padding:0.25rem 0.6rem;">
+                🟢 Nuvem Ativa (Supabase)
+              </span>
+            </h3>
+            <p style="font-size:0.85rem;color:#0284c7;margin:0;">
+              Sincronização em tempo real entre Celular, Computador e Diretoria. Dados salvos com segurança máxima.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;background:#ffffff;border:1px solid #bae6fd;border-radius:var(--radius-md);padding:0.9rem 1.25rem;">
+          <button class="btn btn-primary btn-sm" onclick="forcePullFromCloud()" style="background:#0284c7;border-color:#0369a1;font-weight:700;">
+            🔄 Sincronizar Agora com a Nuvem
+          </button>
+          <button class="btn btn-gold btn-sm" onclick="hardResetFromCloud()" style="font-weight:700;">
+            ⚡ Forçar Recarga Direta da Nuvem (Limpar Cache Local)
+          </button>
+          <span style="font-size:0.82rem;color:#0369a1;margin-left:auto;">
+            📊 <strong>${appData.fluxoCaixa?.length || 0}</strong> lançamentos no Caixa • <strong>${appData.players?.length || 0}</strong> atletas cadastrados
+          </span>
+        </div>
       </div>
 
       <!-- Card: Gestão de Temporadas & Virada para 2027 -->
