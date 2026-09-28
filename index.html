@@ -32999,13 +32999,16 @@ function deleteTransaction(id) {
     return;
   }
   if (!confirm('Tem certeza que deseja excluir este lançamento do Fluxo de Caixa?')) return;
+  
+  createSafetySnapshot(`Antes de excluir lançamento do Caixa (ID ${id})`);
+
   if (!appData.deletedTransactionIds) appData.deletedTransactionIds = [];
   appData.deletedTransactionIds.push(id);
   appData.deletedTransactionIds.push(String(id));
   appData.fluxoCaixa = (appData.fluxoCaixa || []).filter(t => t.id !== id && String(t.id) !== String(id));
   saveAppState(true);
   renderCaixa();
-  showToast('Lançamento excluído!', 'info');
+  showToast('Lançamento excluído! (Ponto de restauração salvo em Configurações)', 'info');
 }
 
 function openEditTransactionModal(transactionId) {
@@ -34435,28 +34438,75 @@ function renderConfiguracoes() {
       </div>
 
       <div class="kpi-card" style="display:block;">
-        <h3 style="margin-bottom:1rem;font-size:1.1rem;color:var(--text-main);">💾 Backup & Segurança dos Dados</h3>
+        <h3 style="margin-bottom:0.75rem;font-size:1.1rem;color:var(--text-main);display:flex;align-items:center;gap:0.5rem;">
+          💾 Central de Backup & Segurança de Dados
+        </h3>
         
-        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1.25rem;">
-          Seus dados são salvos automaticamente no navegador neste computador. Para garantir que você não perca nenhuma informação e possa transferi-los para outro computador ou celular, faça backups periódicos.
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">
+          Seus dados são salvos no navegador e sincronizados em tempo real com a nuvem do Supabase. Utilize os botões abaixo para exportar backups completos ou restaurar pontos anteriores contra qualquer exclusão indevida.
         </p>
 
-        <div style="display:flex;flex-direction:column;gap:0.75rem;">
-          <button class="btn btn-gold" onclick="exportBackupJSON()">
-            📥 Baixar Arquivo de Backup Completo (JSON)
+        <!-- Botão Destaque: Pacote Completo -->
+        <button class="btn btn-gold" style="width:100%;margin-bottom:0.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:0.5rem;" onclick="exportAllBackupFiles()">
+          📦 Baixar Pacote Completo de Backup (JSON + Livro Caixa + Estatísticas + Mensalidades)
+        </button>
+
+        <!-- Grade de Botões Individuais -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.75rem;">
+          <button class="btn btn-secondary btn-sm" onclick="exportBackupJSON()" title="Arquivo JSON estruturado para restauração do sistema">
+            📥 Backup do Sistema (JSON)
           </button>
-          
-          <label class="btn btn-secondary" style="cursor:pointer;">
-            📤 Restaurar Backup de Arquivo (JSON)
-            <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="handleBackupImport(event)">
-          </label>
-
-          <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">
-
-          <button class="btn btn-danger" onclick="resetToSpreadsheetData()">
-            ⚠️ Restaurar Dados Originais da Planilha 2026
+          <button class="btn btn-secondary btn-sm" onclick="exportCashFlowCSV()" title="Planilha do Livro Caixa em CSV">
+            💵 Livro Caixa (CSV)
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="exportStatsCSV()" title="Planilha de Estatísticas e Classificação dos Atletas em CSV">
+            ⚽ Estatísticas Atletas (CSV)
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="exportDuesReportCSV()" title="Planilha de Mensalidades em CSV">
+            📅 Mensalidades (CSV)
           </button>
         </div>
+
+        <!-- Importar / Restaurar -->
+        <div style="background:var(--bg-card-secondary, #f8fafc);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.75rem;margin-bottom:0.75rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <div>
+              <strong style="font-size:0.85rem;color:var(--text-main);">📤 Restaurar a partir de Arquivo JSON</strong>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Recupere todos os dados a partir de um arquivo de backup (.json).</div>
+            </div>
+            <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0;">
+              Selecionar Arquivo
+              <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="handleBackupImport(event)">
+            </label>
+          </div>
+        </div>
+
+        <!-- Pontos de Restauração Automática (Safety Snapshots) -->
+        ${(() => {
+          const snaps = getSafetySnapshots();
+          if (!snaps || snaps.length === 0) return '';
+          return `
+            <div style="margin-top:0.75rem;border-top:1px dashed var(--border);padding-top:0.75rem;">
+              <div style="font-size:0.8rem;font-weight:700;color:var(--text-main);margin-bottom:0.4rem;display:flex;align-items:center;gap:0.35rem;">
+                🛡️ Pontos de Restauração Recentes (Salvamento Automático):
+              </div>
+              <div style="display:flex;flex-direction:column;gap:0.35rem;max-height:140px;overflow-y:auto;">
+                ${snaps.map(s => `
+                  <div style="display:flex;justify-content:space-between;align-items:center;background:#f1f5f9;padding:4px 8px;border-radius:4px;font-size:0.75rem;">
+                    <span><strong>${escapeHtml(s.timestamp)}</strong>: ${escapeHtml(s.action || 'Salvamento')}</span>
+                    <button class="btn btn-sm" style="padding:2px 6px;font-size:0.7rem;background:#0284c7;color:#fff;border:none;border-radius:3px;cursor:pointer;" onclick="restoreSafetySnapshot(${s.id})">Restaurar</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        })()}
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">
+
+        <button class="btn btn-danger btn-sm" onclick="resetToSpreadsheetData()" style="width:100%;">
+          ⚠️ Restaurar Dados Originais da Planilha 2026
+        </button>
       </div>
 
       <div class="kpi-card" style="display:block;">
@@ -34624,7 +34674,56 @@ function saveConfigSettings() {
   saveAppState(true);
 }
 
-function exportBackupJSON() {
+function createSafetySnapshot(actionLabel) {
+  try {
+    const raw = localStorage.getItem('SAO_JOAO_SAFETY_SNAPSHOTS');
+    const snaps = raw ? JSON.parse(raw) : [];
+    const newSnap = {
+      id: Date.now(),
+      timestamp: new Date().toLocaleString('pt-BR'),
+      action: actionLabel || 'Ação Manual',
+      data: JSON.parse(JSON.stringify(appData))
+    };
+    snaps.unshift(newSnap);
+    if (snaps.length > 8) snaps.length = 8;
+    localStorage.setItem('SAO_JOAO_SAFETY_SNAPSHOTS', JSON.stringify(snaps));
+  } catch (e) {
+    console.warn('Falha ao criar snapshot de segurança:', e);
+  }
+}
+
+function getSafetySnapshots() {
+  try {
+    const raw = localStorage.getItem('SAO_JOAO_SAFETY_SNAPSHOTS');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function restoreSafetySnapshot(snapId) {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  const snaps = getSafetySnapshots();
+  const snap = snaps.find(s => s.id === snapId);
+  if (!snap || !snap.data) {
+    showToast('Ponto de restauração não encontrado.', 'error');
+    return;
+  }
+  if (!confirm(`Deseja restaurar os dados salvos em "${snap.timestamp}" (${snap.action})?\n\nIsso substituirá o estado atual pelos dados deste momento.`)) {
+    return;
+  }
+  // Save safety snapshot of current state before reverting
+  createSafetySnapshot('Antes de reverter para ponto anterior');
+  appData = JSON.parse(JSON.stringify(snap.data));
+  saveAppState(true);
+  renderApp();
+  showToast(`Dados restaurados com sucesso para o ponto de ${snap.timestamp}!`, 'success');
+}
+
+function exportBackupJSON(silent = false) {
   const currentYear = appData.temporada || '2026';
   const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(appData, null, 2));
   const downloadAnchor = document.createElement('a');
@@ -34634,7 +34733,18 @@ function exportBackupJSON() {
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
-  showToast('Backup gerado e baixado!', 'success');
+  if (!silent) showToast('Backup JSON gerado e baixado!', 'success');
+}
+
+function exportAllBackupFiles() {
+  createSafetySnapshot('Exportação Completa de Backups');
+  exportBackupJSON(true);
+  setTimeout(() => exportCashFlowCSV(true), 250);
+  setTimeout(() => exportStatsCSV(true), 500);
+  setTimeout(() => exportDuesReportCSV(true), 750);
+  setTimeout(() => {
+    showToast('Pacote completo baixado! (Backup JSON + Livro Caixa CSV + Estatísticas CSV + Mensalidades CSV)', 'success');
+  }, 1000);
 }
 
 function prepareSeason2027() {
@@ -35109,6 +35219,8 @@ function deletePlayer(playerId) {
 
   if (!confirm(confirmMsg)) return;
 
+  createSafetySnapshot(`Antes de excluir o sócio ${player.nome} (#${player.seq || player.id})`);
+
   // Remove player from players list
   appData.players = appData.players.filter(p => p.id !== playerId);
 
@@ -35247,7 +35359,7 @@ function saveNewPlayer() {
 // 13. CSV EXPORTS
 // ==========================================================================
 
-function exportStatsCSV() {
+function exportStatsCSV(silent = false) {
   const includeQuality = isMasterAdmin;
   let csv = includeQuality
     ? 'Seq;Nome;Posição;Idade;Qualidade;Presença;Gols;Campeão;Lanterna;Eficiência (%);Cartão Amarelo;Cartão Vermelho;Campeão Absoluto\n'
@@ -35259,10 +35371,10 @@ function exportStatsCSV() {
       csv += `"${p.seq}";"${p.nome}";"${p.posicao}";"${p.idade}";"${p.estatisticas.presenca}";"${p.estatisticas.gols}";"${p.estatisticas.campeao}";"${p.estatisticas.lanterna}";"${p.estatisticas.eficiencia}%";"${p.estatisticas.cartaoAmarelo}";"${p.estatisticas.cartaoVermelho}";"${p.estatisticas.campeaoAbsoluto}"\n`;
     }
   });
-  downloadCSV(csv, 'estatisticas_sao_joao_2026.csv');
+  downloadCSV(csv, 'estatisticas_sao_joao_2026.csv', silent);
 }
 
-function exportDuesReportCSV() {
+function exportDuesReportCSV(silent = false) {
   let csv = 'Nome;Status;' + MESES.map(m => m.nome).join(';') + ';Total Pago;Total Pendente\n';
   appData.players.forEach(p => {
     if (!p.ativo) return;
@@ -35276,18 +35388,18 @@ function exportDuesReportCSV() {
     });
     csv += `"${p.nome}";"Sócio Ativo";${mCols.map(c => `"${c}"`).join(';')};"${pago}";"${pendente}"\n`;
   });
-  downloadCSV(csv, 'mensalidades_sao_joao_2026.csv');
+  downloadCSV(csv, 'mensalidades_sao_joao_2026.csv', silent);
 }
 
-function exportCashFlowCSV() {
+function exportCashFlowCSV(silent = false) {
   let csv = 'Data;Tipo;Categoria;Descrição;Valor\n';
   (appData.fluxoCaixa || []).forEach(t => {
     csv += `"${t.data}";"${t.tipo}";"${t.categoria}";"${t.descricao}";"${t.valor}"\n`;
   });
-  downloadCSV(csv, 'fluxo_caixa_sao_joao_2026.csv');
+  downloadCSV(csv, 'fluxo_caixa_sao_joao_2026.csv', silent);
 }
 
-function downloadCSV(csvContent, filename) {
+function downloadCSV(csvContent, filename, silent = false) {
   const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -35296,7 +35408,7 @@ function downloadCSV(csvContent, filename) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  showToast('Download do arquivo CSV concluído!', 'success');
+  if (!silent) showToast('Download do arquivo CSV concluído!', 'success');
 }
 
 // ==========================================================================
