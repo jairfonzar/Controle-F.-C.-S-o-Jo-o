@@ -8438,14 +8438,41 @@ function removePlayerFromRoundTeam(teamIndex, playerIndex) {
   const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
   if (!rnd || !rnd.times || !rnd.times[teamIndex]) return;
 
+  const player = rnd.times[teamIndex].jogadores[playerIndex];
+  if (!player) return;
+
+  if (!confirm(`Deseja remover "${player.nome}" do ${rnd.times[teamIndex].name} e desmarcar a presença na Rodada ${currentRoundNum}? (Atleta ausente / faltou)`)) {
+    return;
+  }
+
   const [removed] = rnd.times[teamIndex].jogadores.splice(playerIndex, 1);
   const t = rnd.times[teamIndex];
   t.totalEstrelas = t.jogadores.reduce((sum, p) => sum + (parseFloat(p.qualidade) || 3.0), 0);
   t.mediaEstrelas = t.jogadores.length > 0 ? (t.totalEstrelas / t.jogadores.length).toFixed(1) : '0.0';
 
-  saveAppState(false);
+  // Unmark presence and clear stats for this round
+  const pl = appData.players.find(p => p.id === removed.id);
+  if (pl && pl.rodadas && pl.rodadas[currentRoundNum]) {
+    pl.rodadas[currentRoundNum] = { p: 0, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
+  }
+  if (rnd.presencas && Array.isArray(rnd.presencas)) {
+    rnd.presencas = rnd.presencas.filter(id => id !== removed.id && id !== String(removed.id));
+  }
+
+  // Remove from match scoresheet stats if present
+  if (rnd.jogos && Array.isArray(rnd.jogos)) {
+    rnd.jogos.forEach(m => {
+      if (m.stats && m.stats[removed.id]) {
+        delete m.stats[removed.id];
+      }
+    });
+  }
+
+  recalculateAllStats();
+  updateRoundTotalizers();
+  saveAppState(true);
   renderRodadaManager();
-  showToast(`${removed.nome} removido do ${t.name}.`, 'info');
+  showToast(`Atleta "${removed.nome}" removido do time e presença desmarcada na Rodada ${currentRoundNum}.`, 'info');
 }
 
 function promptAddPlayerToRoundTeam(teamIndex) {
@@ -8538,6 +8565,25 @@ function updatePlayerRoundStat(playerId, field, val) {
     if (row) {
       if (val === 1) row.classList.add('present');
       else row.classList.remove('present');
+    }
+    // If presence is unchecked (0), remove from any team assignment in this round
+    if (val === 0) {
+      const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
+      if (rnd && rnd.times) {
+        let teamChanged = false;
+        rnd.times.forEach(t => {
+          const idx = t.jogadores.findIndex(x => x.id === playerId);
+          if (idx !== -1) {
+            t.jogadores.splice(idx, 1);
+            t.totalEstrelas = t.jogadores.reduce((sum, p) => sum + (parseFloat(p.qualidade) || 3.0), 0);
+            t.mediaEstrelas = t.jogadores.length > 0 ? (t.totalEstrelas / t.jogadores.length).toFixed(1) : '0.0';
+            teamChanged = true;
+          }
+        });
+        if (teamChanged) {
+          renderRodadaManager();
+        }
+      }
     }
   }
 
@@ -15191,6 +15237,9 @@ function renderDrawnTeams() {
                   <button class="btn-swap-slot" onclick="handlePlayerSwapClick(${tIdx}, ${pIdx})" title="Trocar este jogador com outro atleta">
                     ${isSwapTarget ? '✕ Cancelar' : '⇄ Trocar'}
                   </button>
+                  <button class="btn-swap-slot" style="color:#b91c1c;border-color:#fecaca;" onclick="removePlayerFromSorteio(${tIdx}, ${pIdx})" title="Remover este jogador do time (atleta faltou / ausente)">
+                    ✕
+                  </button>
                 </div>
               </div>
             `;
@@ -15308,6 +15357,31 @@ function handleReservaSwapClick(reservaIndex) {
   currentSorteioState.selectedForSwap = null;
   renderDrawnTeams();
   showToast(`Substituição: Entra ${reservaPlayer.nome} no lugar de ${teamPlayer.nome}`, 'success');
+}
+
+function removePlayerFromSorteio(teamIndex, playerIndex) {
+  if (!currentSorteioState || !currentSorteioState.teams) return;
+  const t = currentSorteioState.teams[teamIndex];
+  if (!t || !t.jogadores) return;
+
+  const player = t.jogadores[playerIndex];
+  if (!player) return;
+
+  if (!confirm(`Remover "${player.nome}" do ${t.name} e marcar como ausente no sorteio desta rodada?`)) {
+    return;
+  }
+
+  t.jogadores.splice(playerIndex, 1);
+  t.totalEstrelas = t.jogadores.reduce((sum, p) => sum + (parseFloat(p.qualidade) || 3.0), 0);
+  t.mediaEstrelas = t.jogadores.length > 0 ? (t.totalEstrelas / t.jogadores.length).toFixed(1) : '0.0';
+
+  // If there are reservas, we can optionally inform user
+  if (currentSorteioState.selectedForSwap && currentSorteioState.selectedForSwap.teamIndex === teamIndex && currentSorteioState.selectedForSwap.playerIndex === playerIndex) {
+    currentSorteioState.selectedForSwap = null;
+  }
+
+  renderDrawnTeams();
+  showToast(`Atleta "${player.nome}" removido do sorteio.`, 'info');
 }
 
 function copyDrawnTeamsToWhatsApp() {
@@ -15734,18 +15808,18 @@ function openMatchScoresheetModal(roundNum, matchId) {
     return;
   }
 
-  // Build draft of player stats for athletes in this match
+  // Build draft of player stats specifically for THIS match
   const statsDraft = {};
   const allPlayersInMatch = [...(teamA.jogadores || []), ...(teamB.jogadores || [])];
 
   allPlayersInMatch.forEach(item => {
     const pl = appData.players.find(p => p.id === item.id);
     if (pl) {
-      const rData = pl.rodadas?.[roundNum] || { g: 0, ca: 0, cv: 0 };
+      const matchStat = (match.stats && match.stats[pl.id]) ? match.stats[pl.id] : null;
       statsDraft[pl.id] = {
-        g: Number(rData.g || 0),
-        ca: Number(rData.ca || 0),
-        cv: Number(rData.cv || 0)
+        g: matchStat ? Number(matchStat.g || 0) : 0,
+        ca: matchStat ? Number(matchStat.ca || 0) : 0,
+        cv: matchStat ? Number(matchStat.cv || 0) : 0
       };
     }
   });
@@ -15966,30 +16040,44 @@ function saveAndFinalizeMatchScoresheet() {
     }
   }
 
-  // 2. Save individual athlete stats to player profile & round record
-  const allPlayersInMatch = [...(teamA.jogadores || []), ...(teamB.jogadores || [])];
-  allPlayersInMatch.forEach(item => {
-    const pl = appData.players.find(p => p.id === item.id);
-    if (pl) {
-      if (!pl.rodadas) pl.rodadas = {};
-      if (!pl.rodadas[roundNum]) {
-        pl.rodadas[roundNum] = { p: 1, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
-      }
-      const st = activeScoresheetMatch.statsDraft[pl.id] || { g: 0, ca: 0, cv: 0 };
-      pl.rodadas[roundNum].p = 1; // Confirmed participation in the match
-      pl.rodadas[roundNum].g = Number(st.g || 0);
-      pl.rodadas[roundNum].ca = Number(st.ca || 0);
-      pl.rodadas[roundNum].cv = Number(st.cv || 0);
-    }
-  });
-
-  // 3. Update match score & played flag
+  // 2. Persist isolated match stats to match object
+  match.stats = { ...activeScoresheetMatch.statsDraft };
   match.golsA = totalGolsA;
   match.golsB = totalGolsB;
   match.played = true;
   match.penaltyWinner = (totalGolsA === totalGolsB) ? activeScoresheetMatch.penaltyWinner : null;
 
-  // 4. Recalculate stats & Persist
+  // 3. Aggregate all goals, CA and CV across all played matches in this round
+  const roundPlayerAggregates = {};
+  (round.jogos || []).forEach(m => {
+    if (m.stats) {
+      Object.entries(m.stats).forEach(([pId, st]) => {
+        const numId = Number(pId);
+        if (!roundPlayerAggregates[numId]) {
+          roundPlayerAggregates[numId] = { g: 0, ca: 0, cv: 0 };
+        }
+        roundPlayerAggregates[numId].g += Number(st.g || 0);
+        roundPlayerAggregates[numId].ca += Number(st.ca || 0);
+        roundPlayerAggregates[numId].cv += Number(st.cv || 0);
+      });
+    }
+  });
+
+  // 4. Update player profile round stats
+  (appData.players || []).forEach(pl => {
+    if (roundPlayerAggregates[pl.id]) {
+      if (!pl.rodadas) pl.rodadas = {};
+      if (!pl.rodadas[roundNum]) {
+        pl.rodadas[roundNum] = { p: 1, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
+      }
+      pl.rodadas[roundNum].p = 1;
+      pl.rodadas[roundNum].g = roundPlayerAggregates[pl.id].g;
+      pl.rodadas[roundNum].ca = roundPlayerAggregates[pl.id].ca;
+      pl.rodadas[roundNum].cv = roundPlayerAggregates[pl.id].cv;
+    }
+  });
+
+  // 5. Recalculate stats & Persist
   recalculateAllStats();
   saveAppState(false);
 
@@ -16079,31 +16167,33 @@ function renderRoundMatchesBoard(round) {
             const isPlayed = Boolean(m.played || (gA > 0 || gB > 0) || m.penaltyWinner);
             const isTied = (gA === gB);
 
-            // Collect Scorers and Cards for Team A & B
+            // Collect Scorers and Cards for Team A & B in THIS MATCH SPECIFICALLY
             const scorersA = [];
             const scorersB = [];
             const cardsA = [];
             const cardsB = [];
 
-            (tA.jogadores || []).forEach(item => {
-              const pl = appData.players.find(p => p.id === item.id);
-              const rData = pl?.rodadas?.[currentRnd.numero];
-              if (rData) {
-                if (rData.g > 0) scorersA.push(`${pl.nome} (${rData.g})`);
-                if (rData.ca > 0) cardsA.push(`🟨 ${pl.nome}`);
-                if (rData.cv > 0) cardsA.push(`🟥 ${pl.nome}`);
-              }
-            });
+            if (m.stats) {
+              (tA.jogadores || []).forEach(item => {
+                const pl = appData.players.find(p => p.id === item.id);
+                const st = m.stats[item.id];
+                if (st && pl) {
+                  if (st.g > 0) scorersA.push(`${pl.nome} (${st.g})`);
+                  if (st.ca > 0) cardsA.push(`🟨 ${pl.nome}`);
+                  if (st.cv > 0) cardsA.push(`🟥 ${pl.nome}`);
+                }
+              });
 
-            (tB.jogadores || []).forEach(item => {
-              const pl = appData.players.find(p => p.id === item.id);
-              const rData = pl?.rodadas?.[currentRnd.numero];
-              if (rData) {
-                if (rData.g > 0) scorersB.push(`${pl.nome} (${rData.g})`);
-                if (rData.ca > 0) cardsB.push(`🟨 ${pl.nome}`);
-                if (rData.cv > 0) cardsB.push(`🟥 ${pl.nome}`);
-              }
-            });
+              (tB.jogadores || []).forEach(item => {
+                const pl = appData.players.find(p => p.id === item.id);
+                const st = m.stats[item.id];
+                if (st && pl) {
+                  if (st.g > 0) scorersB.push(`${pl.nome} (${st.g})`);
+                  if (st.ca > 0) cardsB.push(`🟨 ${pl.nome}`);
+                  if (st.cv > 0) cardsB.push(`🟥 ${pl.nome}`);
+                }
+              });
+            }
 
             // Card highlight style
             let headerBg = '#f1f5f9';
@@ -16319,12 +16409,23 @@ function resetRoundMatches(roundNum) {
   }
   const round = appData.rounds?.find(r => r.numero === roundNum);
   if (!round) return;
-  if (!confirm('Deseja zerar os placares de todos os jogos desta rodada?')) return;
+  if (!confirm('Deseja zerar os placares e súmulas de todos os jogos desta rodada?')) return;
 
   round.jogos = generateDefaultRoundMatches(round);
+
+  // Clear match goals & cards for players in this round
+  (appData.players || []).forEach(p => {
+    if (p.rodadas && p.rodadas[roundNum]) {
+      p.rodadas[roundNum].g = 0;
+      p.rodadas[roundNum].ca = 0;
+      p.rodadas[roundNum].cv = 0;
+    }
+  });
+
+  recalculateAllStats();
   saveAppState(false);
-  renderRoundMatchesBoard(round);
-  showToast('Placares dos jogos zerados com sucesso!', 'info');
+  renderRodadaManager();
+  showToast('Placares dos jogos e súmulas zerados com sucesso!', 'info');
 }
 
 function applyStandingsToRoundPlayers(roundNum) {
@@ -16425,7 +16526,20 @@ function copyRoundMatchesToWhatsApp(roundNum) {
         const penWinnerName = m.penaltyWinner === 'A' ? tA.name : tB.name;
         penaltyNote = ` _(${penWinnerName} avançou nos pênaltis para o 3º Jogo 🥅)_`;
       }
-      msg += `${statusIcon} *${m.label || `Jogo ${m.id}`}:* ${tA.name} *${gA} x ${gB}* ${tB.name}${penaltyNote}\n`;
+      let scorersText = '';
+      if (m.stats) {
+        const matchScorers = [];
+        Object.entries(m.stats).forEach(([pId, st]) => {
+          if (st.g > 0) {
+            const pl = appData.players.find(p => p.id === Number(pId));
+            if (pl) matchScorers.push(`${pl.nome} (${st.g})`);
+          }
+        });
+        if (matchScorers.length > 0) {
+          scorersText = `\n   ⚽ _Gols: ${matchScorers.join(', ')}_`;
+        }
+      }
+      msg += `${statusIcon} *${m.label || `Jogo ${m.id}`}:* ${tA.name} *${gA} x ${gB}* ${tB.name}${penaltyNote}${scorersText}\n`;
     });
   } else {
     msg += `(Jogos ainda não registrados)\n`;
