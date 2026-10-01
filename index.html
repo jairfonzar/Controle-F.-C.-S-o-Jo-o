@@ -1034,10 +1034,12 @@ body {
   border: 1px solid #fde68a;
 }
 
-.cell-due.isento {
-  background: #f1f5f9;
-  color: #94a3b8;
-  border: 1px dashed #cbd5e1;
+.cell-due.isento,
+.cell-due.abonado {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1.5px dashed #0284c7;
+  font-weight: 800;
 }
 
 .cell-due:hover {
@@ -3937,6 +3939,30 @@ body:not(.is-master) [data-master-only="true"] {
       <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;flex-shrink:0;">
         <button class="btn btn-secondary" onclick="closeModal('modal-quick-settlement')">Fechar</button>
         <div id="quick-settle-footer-actions" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gerenciador de Mensalidade & Abono Individual -->
+  <div class="modal-overlay" id="modal-manage-due">
+    <div class="modal-box" style="max-width:540px;width:95%;">
+      <div class="modal-header" style="background:linear-gradient(135deg, #1e3a8a, #0284c7);color:#ffffff;border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
+        <div>
+          <h3 id="modal-manage-due-title" style="margin:0;color:#ffffff;font-size:1.15rem;display:flex;align-items:center;gap:0.5rem;">
+            💳 Gerenciar Mensalidade do Sócio
+          </h3>
+          <p id="modal-manage-due-subtitle" style="margin:3px 0 0 0;font-size:0.78rem;color:#e0f2fe;">
+            Alterar status para Pago, Abonado (Isento), Pendente ou A Vencer
+          </p>
+        </div>
+        <button class="modal-close" style="color:#ffffff;" onclick="closeModal('modal-manage-due')">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-manage-due-body" style="padding:1.25rem;">
+        <!-- Preenchido dinamicamente via JS -->
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-manage-due')">Fechar</button>
+        <div id="modal-manage-due-footer-actions" style="display:flex;gap:0.5rem;"></div>
       </div>
     </div>
   </div>
@@ -26224,8 +26250,8 @@ function updateAutomaticDuesStatus() {
       const curDue = p.mensalidades[m.key];
       const curStatus = curDue ? curDue.status : 'a_vencer';
 
-      // Se for isento (goleiros isentos), não alterar
-      if (curStatus === 'isento') return;
+      // Se for isento ou abonado, não alterar
+      if (curStatus === 'isento' || curStatus === 'abonado') return;
       // Se já estiver pago, não alterar
       if (curStatus === 'pago') return;
 
@@ -30434,12 +30460,14 @@ function renderDuesMatrix() {
               if (due.status === 'pago') pTotalPago += Number(due.valor || 50);
               if (due.status === 'pendente') pTotalPendente += Number(due.valor || 50);
 
-              const statusText = due.status === 'pago' ? 'P' : due.status === 'pendente' ? '!' : due.status === 'isento' ? '-' : '•';
-              const titleText = `${p.nome} - ${m.nome}: ${due.status.toUpperCase()} ${due.dataPagamento ? `(Pago em ${due.dataPagamento})` : ''}`;
+              const isAbonado = due.status === 'isento' || due.status === 'abonado';
+              const statusText = due.status === 'pago' ? 'P' : due.status === 'pendente' ? '!' : isAbonado ? 'A' : '•';
+              const statusLabel = isAbonado ? 'ABONADO (Isento)' : due.status.toUpperCase();
+              const titleText = `${p.nome} - ${m.nome}: ${statusLabel} ${due.dataPagamento ? `(Pago em ${due.dataPagamento})` : ''} ${due.motivo ? `• Motivo: ${due.motivo}` : ''}`;
 
               return `
                 <td>
-                  <span class="cell-due ${due.status}" title="${titleText}" onclick="cycleDueStatus(${p.id}, '${m.key}')">
+                  <span class="cell-due ${isAbonado ? 'isento' : due.status}" title="${titleText}" onclick="openManageDueModal(${p.id}, '${m.key}')">
                     ${statusText}
                   </span>
                 </td>
@@ -30472,12 +30500,246 @@ function renderDuesMatrix() {
     <div style="font-size:0.8rem;color:var(--text-muted);display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;margin-top:1rem;">
       <span>📅 <strong>Vencimento da Mensalidade: todo dia 10</strong></span>
       <span><span class="cell-due pago" style="width:20px;height:18px;font-size:0.65rem;">P</span> Pago</span>
+      <span><span class="cell-due isento" style="width:20px;height:18px;font-size:0.65rem;">A</span> Abonado / Isento</span>
       <span><span class="cell-due pendente" style="width:20px;height:18px;font-size:0.65rem;">!</span> Pendente</span>
       <span><span class="cell-due a_vencer" style="width:20px;height:18px;font-size:0.65rem;">•</span> A Vencer</span>
-      <span><span class="cell-due isento" style="width:20px;height:18px;font-size:0.65rem;">-</span> Isento</span>
-      <span style="margin-left:auto;"><em>* Clique sobre qualquer célula para alternar o status ou registrar pagamento.</em></span>
+      <span style="margin-left:auto;"><em>* Clique sobre qualquer célula para gerenciar o status (Abonar, Quitar ou Cobrar).</em></span>
     </div>
   `;
+}
+
+function openManageDueModal(playerId, monthKey) {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  const player = appData.players?.find(p => p.id === playerId);
+  if (!player) return;
+
+  const mesObj = MESES.find(m => m.key === monthKey);
+  const mesNome = mesObj ? mesObj.nome : monthKey.toUpperCase();
+  const due = player.mensalidades?.[monthKey] || { status: 'a_vencer', valor: 50 };
+  const curStatus = due.status || 'a_vencer';
+  const isAbonado = curStatus === 'isento' || curStatus === 'abonado';
+  const cfgValor = Number(appData.configuracoes?.valorMensalidade || 50);
+
+  const modal = document.getElementById('modal-manage-due');
+  const title = document.getElementById('modal-manage-due-title');
+  const subtitle = document.getElementById('modal-manage-due-subtitle');
+  const body = document.getElementById('modal-manage-due-body');
+  if (!modal || !body) return;
+
+  title.innerHTML = `💳 Gerenciar Mensalidade • ${escapeHtml(player.nome)}`;
+  subtitle.innerHTML = `Mês de <strong>${mesNome}/2026</strong> • Valor Padrão: R$ ${cfgValor.toFixed(2)}`;
+
+  let statusBadgeHtml = '';
+  if (curStatus === 'pago') {
+    statusBadgeHtml = `<span class="badge badge-green" style="font-size:0.85rem;padding:4px 10px;">✅ PAGO ${due.dataPagamento ? `(em ${due.dataPagamento})` : ''}</span>`;
+  } else if (isAbonado) {
+    statusBadgeHtml = `<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #38bdf8;font-size:0.85rem;padding:4px 10px;font-weight:800;">🔵 ABONADO / ISENTO</span>`;
+  } else if (curStatus === 'pendente') {
+    statusBadgeHtml = `<span class="badge badge-red" style="font-size:0.85rem;padding:4px 10px;">⚠️ PENDENTE (Em Débito)</span>`;
+  } else {
+    statusBadgeHtml = `<span class="badge badge-gold" style="font-size:0.85rem;padding:4px 10px;">⏳ A VENCER</span>`;
+  }
+
+  body.innerHTML = `
+    <!-- Card do Sócio e Status Atual -->
+    <div style="background:#ffffff;border:1px solid var(--border);border-radius:var(--radius-md);padding:0.9rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;">
+      <div style="display:flex;align-items:center;gap:0.6rem;">
+        ${renderPlayerAvatarHtml(player, 'player-avatar-md')}
+        <div>
+          <strong style="font-size:1rem;color:var(--text-main);display:block;">${escapeHtml(player.nome)}</strong>
+          <span style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(player.posicao || 'Atleta')} • #${player.seq || player.id}</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--text-muted);text-align:right;margin-bottom:2px;font-weight:700;text-transform:uppercase;">Situação Atual:</div>
+        <div style="text-align:right;">${statusBadgeHtml}</div>
+      </div>
+    </div>
+
+    <!-- Motivo / Observação do Abono -->
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label style="font-weight:700;font-size:0.85rem;display:flex;justify-content:space-between;">
+        <span>📝 Motivo do Abono / Observação (Opcional):</span>
+        <span style="font-size:0.72rem;color:var(--text-muted);font-weight:normal;">Ex: Licença médica, Reunião diretoria</span>
+      </label>
+      <input type="text" id="manage-due-motivo" class="form-control" placeholder="Digite o motivo do abono ou observação..." value="${escapeHtml(due.motivo || '')}">
+    </div>
+
+    <!-- Botões de Alteração Rápida -->
+    <div style="margin-bottom:1rem;">
+      <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:0.5rem;color:var(--text-main);">
+        Selecione o novo status para ${mesNome}/2026:
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+        
+        <!-- Botão: ABONAR (Destaque Azul) -->
+        <button type="button" class="btn" style="background:#0284c7;color:#ffffff;border:none;font-weight:800;padding:0.75rem 0.5rem;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:var(--radius-md);box-shadow:0 2px 4px rgba(2,132,199,0.25);"
+                onclick="applyDueStatusFromModal(${player.id}, '${monthKey}', 'isento')">
+          <span style="font-size:1.15rem;">🔵</span>
+          <span style="font-size:0.85rem;">ABONAR MÊS</span>
+          <small style="font-size:0.68rem;opacity:0.9;font-weight:500;">Isenta o atleta deste mês</small>
+        </button>
+
+        <!-- Botão: PAGO (Verde) -->
+        <button type="button" class="btn" style="background:#16a34a;color:#ffffff;border:none;font-weight:800;padding:0.75rem 0.5rem;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:var(--radius-md);box-shadow:0 2px 4px rgba(22,163,74,0.25);"
+                onclick="applyDueStatusFromModal(${player.id}, '${monthKey}', 'pago')">
+          <span style="font-size:1.15rem;">🟢</span>
+          <span style="font-size:0.85rem;">MARCAR COMO PAGO</span>
+          <small style="font-size:0.68rem;opacity:0.9;font-weight:500;">Quita e lança no Caixa</small>
+        </button>
+
+        <!-- Botão: PENDENTE -->
+        <button type="button" class="btn btn-secondary" style="color:#b91c1c;border-color:#fca5a5;font-weight:700;padding:0.65rem 0.5rem;display:flex;flex-direction:column;align-items:center;gap:2px;border-radius:var(--radius-md);"
+                onclick="applyDueStatusFromModal(${player.id}, '${monthKey}', 'pendente')">
+          <span style="font-size:1rem;">🔴</span>
+          <span style="font-size:0.8rem;">Marcar como Pendente</span>
+          <small style="font-size:0.65rem;color:var(--text-muted);">Gera débito para cobrança</small>
+        </button>
+
+        <!-- Botão: A VENCER -->
+        <button type="button" class="btn btn-secondary" style="color:#854d0e;border-color:#fde047;font-weight:700;padding:0.65rem 0.5rem;display:flex;flex-direction:column;align-items:center;gap:2px;border-radius:var(--radius-md);"
+                onclick="applyDueStatusFromModal(${player.id}, '${monthKey}', 'a_vencer')">
+          <span style="font-size:1rem;">⚪</span>
+          <span style="font-size:0.8rem;">Marcar como A Vencer</span>
+          <small style="font-size:0.65rem;color:var(--text-muted);">Mês futuro em aberto</small>
+        </button>
+      </div>
+    </div>
+
+    <!-- Opções em Lote para este Sócio -->
+    <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:var(--radius-md);padding:0.75rem 0.9rem;">
+      <div style="font-size:0.78rem;font-weight:800;color:var(--text-main);margin-bottom:0.4rem;display:flex;align-items:center;gap:4px;">
+        <span>⚡</span> Ações em Lote para ${escapeHtml(player.nome)}:
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+        <button type="button" class="btn btn-secondary btn-sm" style="font-size:0.73rem;padding:3px 8px;" onclick="bulkAbonarPlayerMonths(${player.id}, '${monthKey}', false)">
+          🛡️ Abonar de ${mesNome} até Dezembro/2026
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" style="font-size:0.73rem;padding:3px 8px;" onclick="bulkAbonarPlayerMonths(${player.id}, 'jan', true)">
+          📅 Abonar Ano Todo (Jan a Dez)
+        </button>
+      </div>
+    </div>
+  `;
+
+  modal.classList.add('active');
+}
+
+function applyDueStatusFromModal(playerId, monthKey, targetStatus) {
+  const motivo = (document.getElementById('manage-due-motivo')?.value || '').trim();
+  setPlayerDueStatus(playerId, monthKey, targetStatus, motivo);
+  closeModal('modal-manage-due');
+}
+
+function setPlayerDueStatus(playerId, monthKey, targetStatus, motivo = '', postCashflow = true) {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  const player = appData.players?.find(p => p.id === playerId);
+  if (!player) return;
+
+  if (!player.mensalidades) player.mensalidades = {};
+  const current = player.mensalidades[monthKey]?.status || 'a_vencer';
+  const mesObj = MESES.find(m => m.key === monthKey);
+  const mesNome = mesObj ? mesObj.nome : monthKey.toUpperCase();
+  const cfgValor = Number(appData.configuracoes?.valorMensalidade || 50);
+
+  let dataPag = null;
+  if (targetStatus === 'pago') {
+    const today = new Date();
+    dataPag = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+    
+    if (postCashflow) {
+      if (!appData.fluxoCaixa) appData.fluxoCaixa = [];
+      appData.fluxoCaixa.push({
+        id: Date.now(),
+        data: dataPag,
+        tipo: 'entrada',
+        categoria: 'Mensalidade',
+        descricao: `Mensalidade ${mesNome}/2026 - ${player.nome}`,
+        valor: cfgValor
+      });
+    }
+  } else if (current === 'pago' && targetStatus !== 'pago') {
+    // Se estava pago e mudou para outro status (ex: Abonado ou Pendente), remove do caixa
+    if (appData.fluxoCaixa && appData.fluxoCaixa.length > 0) {
+      const idx = appData.fluxoCaixa.findIndex(t => t.tipo === 'entrada' && t.categoria === 'Mensalidade' && t.descricao && t.descricao.includes(player.nome) && t.descricao.includes(mesNome));
+      if (idx !== -1) {
+        appData.fluxoCaixa.splice(idx, 1);
+      }
+    }
+  }
+
+  const isAbonado = targetStatus === 'isento' || targetStatus === 'abonado';
+  player.mensalidades[monthKey] = {
+    status: isAbonado ? 'isento' : targetStatus,
+    valor: isAbonado ? 0 : cfgValor,
+    dataPagamento: dataPag,
+    motivo: motivo || (isAbonado ? 'Abonado' : null)
+  };
+
+  createSafetySnapshot(`Alteração mensalidade ${player.nome} (${mesNome} -> ${targetStatus})`);
+  saveAppState(true);
+  renderApp();
+
+  const labelMap = {
+    'isento': 'ABONADA (Isento)',
+    'abonado': 'ABONADA (Isento)',
+    'pago': 'PAGA e quitada',
+    'pendente': 'PENDENTE (Em Débito)',
+    'a_vencer': 'A VENCER'
+  };
+  showToast(`Mensalidade de ${player.nome} (${mesNome}) alterada para ${labelMap[targetStatus] || targetStatus}!`, 'success');
+}
+
+function bulkAbonarPlayerMonths(playerId, startMonthKey, isAllYear = false) {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  const player = appData.players?.find(p => p.id === playerId);
+  if (!player) return;
+
+  const motivo = (document.getElementById('manage-due-motivo')?.value || '').trim() || 'Abono em lote';
+  const startIdx = isAllYear ? 0 : MESES.findIndex(m => m.key === startMonthKey);
+  const startMonthName = MESES[startIdx]?.nome || 'início';
+
+  const confirmMsg = isAllYear
+    ? `Deseja realmente ABONAR todos os 12 meses de 2026 para o sócio "${player.nome}"?\n\n• O atleta ficará 100% isento no ano de 2026.`
+    : `Deseja realmente ABONAR as mensalidades a partir de ${startMonthName} até Dezembro para "${player.nome}"?\n\n• Todas as mensalidades deste período ficarão isentas.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  createSafetySnapshot(`Abono em lote de mensalidades para ${player.nome}`);
+
+  if (!player.mensalidades) player.mensalidades = {};
+  let count = 0;
+
+  MESES.forEach((m, idx) => {
+    if (idx >= startIdx) {
+      const cur = player.mensalidades[m.key];
+      if (cur?.status === 'pago' && appData.fluxoCaixa) {
+        const cIdx = appData.fluxoCaixa.findIndex(t => t.tipo === 'entrada' && t.categoria === 'Mensalidade' && t.descricao && t.descricao.includes(player.nome) && t.descricao.includes(m.nome));
+        if (cIdx !== -1) appData.fluxoCaixa.splice(cIdx, 1);
+      }
+      player.mensalidades[m.key] = {
+        status: 'isento',
+        valor: 0,
+        dataPagamento: null,
+        motivo: motivo
+      };
+      count++;
+    }
+  });
+
+  saveAppState(true);
+  closeModal('modal-manage-due');
+  renderApp();
+  showToast(`${count} mensalidades foram ABONADAS para ${player.nome} com sucesso!`, 'success');
 }
 
 function cycleDueStatus(playerId, monthKey) {
@@ -30486,50 +30748,14 @@ function cycleDueStatus(playerId, monthKey) {
 
   const current = player.mensalidades[monthKey]?.status || 'a_vencer';
   let next = 'pago';
-  let dataPag = null;
 
   if (current === 'pendente') next = 'pago';
-  else if (current === 'a_vencer') next = 'pago';
-  else if (current === 'pago') next = 'pendente';
-  else if (current === 'isento') next = 'a_vencer';
+  else if (current === 'pago') next = 'isento'; // Ciclo: Pago -> Abonado
+  else if (current === 'isento' || current === 'abonado') next = 'a_vencer'; // Ciclo: Abonado -> A Vencer
+  else if (current === 'a_vencer') next = 'pendente'; // Ciclo: A Vencer -> Pendente
   else next = 'pago';
 
-  const mesObj = MESES.find(m => m.key === monthKey);
-  const mesNome = mesObj ? mesObj.nome : monthKey.toUpperCase();
-
-  if (next === 'pago') {
-    const today = new Date();
-    dataPag = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-    const valor = Number(player.mensalidades[monthKey]?.valor || appData.configuracoes.valorMensalidade);
-
-    if (!appData.fluxoCaixa) appData.fluxoCaixa = [];
-    appData.fluxoCaixa.push({
-      id: Date.now(),
-      data: dataPag,
-      tipo: 'entrada',
-      categoria: 'Mensalidade',
-      descricao: `Mensalidade ${mesNome}/2026 - ${player.nome}`,
-      valor: valor
-    });
-    showToast(`Mensalidade de ${player.nome} (${mesNome}) quitada e lançada no Caixa!`, 'success');
-  } else if (current === 'pago' && next !== 'pago') {
-    if (appData.fluxoCaixa && appData.fluxoCaixa.length > 0) {
-      const idx = appData.fluxoCaixa.findIndex(t => t.tipo === 'entrada' && t.categoria === 'Mensalidade' && t.descricao && t.descricao.includes(player.nome) && t.descricao.includes(mesNome));
-      if (idx !== -1) {
-        appData.fluxoCaixa.splice(idx, 1);
-        showToast(`Lançamento da mensalidade de ${player.nome} removido do Caixa.`, 'info');
-      }
-    }
-  }
-
-  player.mensalidades[monthKey] = {
-    status: next,
-    valor: Number(appData.configuracoes.valorMensalidade),
-    dataPagamento: dataPag
-  };
-
-  saveAppState(true);
-  renderPendencias();
+  setPlayerDueStatus(playerId, monthKey, next, next === 'isento' ? 'Abonado' : '');
 }
 
 function settlePlayerDebts(playerId) {
@@ -32044,8 +32270,13 @@ function updateQuickSettleCalculatedTotal() {
       <div style="font-size:0.85rem;font-weight:700;color:var(--text-main);margin-right:0.5rem;">
         Total Selecionado: <strong style="color:#15803d;font-size:1.1rem;">R$ ${totalCalculated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
       </div>
+      ${selectedMonthsCount > 0 ? `
+        <button class="btn" style="background:#0284c7;color:#ffffff;border:none;font-weight:800;" onclick="executeQuickGranularAbonar()" title="Abona/isenta as mensalidades marcadas">
+          🔵 Abonar Selecionados (${selectedMonthsCount})
+        </button>
+      ` : ''}
       <button class="btn btn-primary" style="background:#16a34a;border-color:#15803d;font-weight:800;" onclick="executeQuickGranularSettlement()">
-        ⚡ Confirmar Baixa (R$ ${totalCalculated.toFixed(2)})
+        ⚡ Confirmar Baixa / Quitar (R$ ${totalCalculated.toFixed(2)})
       </button>
     `;
   }
@@ -32139,6 +32370,56 @@ function executeQuickGranularSettlement() {
   handleQuickSettlePlayerSelected(player.id);
   renderApp();
   showToast(`⚡ Sucesso! Baixa de R$ ${grandTotal.toFixed(2)} de ${player.nome} realizada com sucesso!`, 'success');
+}
+
+function executeQuickGranularAbonar() {
+  if (!isAdminSession) {
+    openAdminLoginModal();
+    return;
+  }
+  const player = appData.players?.find(p => p.id === currentQuickSettlePlayerId);
+  if (!player) return;
+
+  const checkedMonths = [];
+  document.querySelectorAll('.qs-month-checkbox').forEach(chk => {
+    if (chk.checked) {
+      const mKey = chk.getAttribute('data-month');
+      checkedMonths.push(mKey);
+    }
+  });
+
+  if (checkedMonths.length === 0) {
+    showToast('Selecione ao menos uma mensalidade para abonar.', 'warning');
+    return;
+  }
+
+  const monthNames = checkedMonths.map(mk => MESES.find(m => m.key === mk)?.nome || mk).join(', ');
+  if (!confirm(`Deseja realmente ABONAR as seguintes mensalidades para "${player.nome}"?\n\nMeses: ${monthNames}\n\n• Os meses selecionados ficarão isentos e qualquer débito correspondente será cancelado.`)) {
+    return;
+  }
+
+  createSafetySnapshot(`Abono rápido de ${checkedMonths.length} meses para ${player.nome}`);
+
+  if (!player.mensalidades) player.mensalidades = {};
+  checkedMonths.forEach(mKey => {
+    const cur = player.mensalidades[mKey];
+    if (cur?.status === 'pago' && appData.fluxoCaixa) {
+      const mesObj = MESES.find(m => m.key === mKey);
+      const cIdx = appData.fluxoCaixa.findIndex(t => t.tipo === 'entrada' && t.categoria === 'Mensalidade' && t.descricao && t.descricao.includes(player.nome) && t.descricao.includes(mesObj?.nome || ''));
+      if (cIdx !== -1) appData.fluxoCaixa.splice(cIdx, 1);
+    }
+    player.mensalidades[mKey] = {
+      status: 'isento',
+      valor: 0,
+      dataPagamento: null,
+      motivo: 'Abonado via Baixa Rápida'
+    };
+  });
+
+  saveAppState(true);
+  handleQuickSettlePlayerSelected(player.id);
+  renderApp();
+  showToast(`${checkedMonths.length} mensalidades foram ABONADAS para ${player.nome}!`, 'success');
 }
 
 function buildQuickSettleWhatsAppMessage(player) {
@@ -34975,10 +35256,12 @@ function openPlayerModal(playerId) {
       const d = player.mensalidades[m.key];
       if (d) {
         dueItems.push({
+          key: m.key,
           mes: m.nome,
           status: d.status,
           valor: d.valor || 50,
-          data: d.dataPagamento
+          data: d.dataPagamento,
+          motivo: d.motivo
         });
       }
     });
@@ -35057,13 +35340,20 @@ function openPlayerModal(playerId) {
 
     <!-- Situação Financeira (Exclusivo da Diretoria) -->
     ${isAdminSession ? `
-      <h4 style="font-size:0.95rem;margin-bottom:0.6rem;color:var(--text-main);">💰 Mensalidades 2026 (Restrito Diretoria)</h4>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">
+        <h4 style="font-size:0.95rem;margin:0;color:var(--text-main);">💰 Mensalidades 2026 (Restrito Diretoria)</h4>
+        <small style="color:var(--text-muted);font-size:0.75rem;">Clique no mês para alterar status / abonar</small>
+      </div>
       <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
-        ${dueItems.map(d => `
-          <div style="padding:4px 8px;border-radius:4px;font-size:0.75rem;border:1px solid var(--border);" class="cell-due ${d.status}">
-            ${d.mes}: ${d.status === 'pago' ? `✓ Pago` : d.status === 'pendente' ? `⚠️ Débito` : d.status}
-          </div>
-        `).join('')}
+        ${dueItems.map(d => {
+          const isAbonado = d.status === 'isento' || d.status === 'abonado';
+          const label = d.status === 'pago' ? `✓ Pago` : d.status === 'pendente' ? `⚠️ Débito` : isAbonado ? `🔵 Abonado` : 'A Vencer';
+          return `
+            <div style="padding:4px 8px;border-radius:4px;font-size:0.75rem;border:1px solid var(--border);cursor:pointer;" class="cell-due ${isAbonado ? 'isento' : d.status}" onclick="closeModal('modal-player'); openManageDueModal(${player.id}, '${d.key}')" title="Clique para gerenciar ou abonar a mensalidade de ${d.mes}">
+              ${d.mes}: ${label}
+            </div>
+          `;
+        }).join('')}
       </div>
     ` : ''}
   `;
