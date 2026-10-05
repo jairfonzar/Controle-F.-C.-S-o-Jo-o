@@ -3804,6 +3804,30 @@ body:not(.is-master) [data-master-only="true"] {
     </div>
   </div>
 
+  <!-- Modal: Alterar Confrontos da Rodada -->
+  <div class="modal-overlay" id="modal-edit-matchups">
+    <div class="modal-box" style="max-width:620px;width:94%;">
+      <div class="modal-header">
+        <div>
+          <h3 style="display:flex;align-items:center;gap:0.4rem;color:var(--primary-navy);margin-bottom:2px;">
+            🏟️ Definir Confrontos dos Jogos
+          </h3>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin:0;" id="edit-matchups-modal-subtitle">
+            Escolha quais times jogam entre si nos jogos iniciais do sábado
+          </p>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-edit-matchups')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        <div id="edit-matchups-modal-body"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-edit-matchups')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveEditedRoundMatchups()">Salvar Confrontos</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Acesso da Diretoria / Master (Senha) -->
   <div class="modal-overlay" id="modal-admin-login">
     <div class="modal-box" style="max-width:420px;width:92%;">
@@ -36992,6 +37016,10 @@ function executeTeamDraw() {
   currentSorteioState.teams = finalTeams;
   currentSorteioState.reservas = [];
   currentSorteioState.selectedForSwap = null;
+  currentSorteioState.matchups = [
+    { matchId: 1, label: '1º Jogo', timeAIndex: 0, timeBIndex: 1 },
+    { matchId: 2, label: '2º Jogo', timeAIndex: 2, timeBIndex: 3 }
+  ];
 
   renderDrawnTeams();
   const sobraCount = leftovers ? leftovers.length : 0;
@@ -37108,6 +37136,114 @@ function renderDrawnTeams() {
 
   html += `</div>`;
 
+  // Confrontos dos Jogos do Sábado (Ordem das Partidas)
+  if (teams.length === 4) {
+    if (!currentSorteioState.matchups || currentSorteioState.matchups.length < 2) {
+      currentSorteioState.matchups = [
+        { matchId: 1, label: '1º Jogo', timeAIndex: 0, timeBIndex: 1 },
+        { matchId: 2, label: '2º Jogo', timeAIndex: 2, timeBIndex: 3 }
+      ];
+    }
+    const mu = currentSorteioState.matchups;
+    const m1 = mu[0];
+    const m2 = mu[1];
+
+    const buildTeamOpts = (selectedIdx) => {
+      return teams.map((t, idx) => {
+        const isSel = idx === selectedIdx ? 'selected' : '';
+        return `<option value="${idx}" ${isSel}>${t.icon || '⚽'} ${escapeHtml(t.name)}</option>`;
+      }).join('');
+    };
+
+    const duplicateWarning = (m1.timeAIndex === m1.timeBIndex || m2.timeAIndex === m2.timeBIndex || (new Set([m1.timeAIndex, m1.timeBIndex, m2.timeAIndex, m2.timeBIndex])).size < 4);
+
+    html += `
+      <div style="margin-top:1.25rem;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;border-bottom:1px solid #f1f5f9;padding-bottom:0.5rem;">
+          <div>
+            <h4 style="margin:0;font-size:0.95rem;font-weight:800;color:var(--primary-navy);display:flex;align-items:center;gap:0.4rem;">
+              <span>🏟️</span> Definição dos Confrontos do Sábado (Ordem dos Jogos)
+            </h4>
+            <p style="margin:2px 0 0 0;font-size:0.78rem;color:var(--text-muted);">
+              Escolha quem joga contra quem no 1º e 2º jogo ou clique em um dos atalhos rápidos abaixo:
+            </p>
+          </div>
+          <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-xs" onclick="setSorteadorMatchupPreset(0,1,2,3)" title="Time 1 x Time 2 e Time 3 x Time 4" style="font-size:0.75rem;padding:3px 8px;">
+              1x2 e 3x4 (Padrão)
+            </button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="setSorteadorMatchupPreset(0,2,1,3)" title="Time 1 x Time 3 e Time 2 x Time 4" style="font-size:0.75rem;padding:3px 8px;">
+              1x3 e 2x4 (Cruzado A)
+            </button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="setSorteadorMatchupPreset(0,3,1,2)" title="Time 1 x Time 4 e Time 2 x Time 3" style="font-size:0.75rem;padding:3px 8px;">
+              1x4 e 2x3 (Cruzado B)
+            </button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="randomizeSorteadorMatchups()" title="Sortear confrontos aleatoriamente" style="font-size:0.75rem;padding:3px 8px;font-weight:700;">
+              🎲 Sortear Confrontos
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:0.85rem;">
+          <!-- 1º Jogo -->
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-sm);padding:0.75rem;">
+            <div style="font-size:0.82rem;font-weight:800;color:var(--primary-navy);margin-bottom:0.4rem;display:flex;align-items:center;gap:0.3rem;">
+              <span>⚽</span> 1º Jogo da Rodada
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0.5rem;">
+              <div>
+                <label style="font-size:0.7rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time A</label>
+                <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateSorteadorMatchupTeam(1, 'A', this.value)">
+                  ${buildTeamOpts(m1.timeAIndex)}
+                </select>
+              </div>
+              <div style="font-weight:900;color:var(--text-muted);font-size:1.1rem;text-align:center;padding-top:14px;">x</div>
+              <div>
+                <label style="font-size:0.7rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time B</label>
+                <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateSorteadorMatchupTeam(1, 'B', this.value)">
+                  ${buildTeamOpts(m1.timeBIndex)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2º Jogo -->
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-sm);padding:0.75rem;">
+            <div style="font-size:0.82rem;font-weight:800;color:var(--primary-navy);margin-bottom:0.4rem;display:flex;align-items:center;gap:0.3rem;">
+              <span>⚽</span> 2º Jogo da Rodada
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0.5rem;">
+              <div>
+                <label style="font-size:0.7rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time A</label>
+                <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateSorteadorMatchupTeam(2, 'A', this.value)">
+                  ${buildTeamOpts(m2.timeAIndex)}
+                </select>
+              </div>
+              <div style="font-weight:900;color:var(--text-muted);font-size:1.1rem;text-align:center;padding-top:14px;">x</div>
+              <div>
+                <label style="font-size:0.7rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time B</label>
+                <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateSorteadorMatchupTeam(2, 'B', this.value)">
+                  ${buildTeamOpts(m2.timeBIndex)}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${duplicateWarning ? `
+          <div style="margin-top:0.6rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:0.45rem 0.75rem;font-size:0.75rem;color:#991b1b;font-weight:700;">
+            ⚠️ Atenção: Há times repetidos ou conflitantes nos jogos 1 e 2.
+          </div>
+        ` : ''}
+
+        <div style="margin-top:0.65rem;padding:0.45rem 0.75rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius-sm);font-size:0.75rem;color:#1e40af;display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+          <span>ℹ️</span>
+          <span><strong>Chaveamento do Sábado:</strong> 🔥 <strong>3º Jogo:</strong> Ganhador J1 x Ganhador J2 (Decisão Campeão) • ⚡ <strong>4º Jogo:</strong> Perdedor J1 x Perdedor J2 (Decisão Lanterna).</span>
+        </div>
+      </div>
+    `;
+  }
+
   if (reservas && reservas.length > 0) {
     html += `
       <div style="margin-top:1.25rem;background:#ffffff;border:1px solid #e2e8f0;border-radius:var(--radius-md);padding:1rem;">
@@ -37145,6 +37281,37 @@ function renderDrawnTeams() {
   const btnSave = document.getElementById('btn-save-teams-round');
   if (btnCopy) btnCopy.style.display = 'inline-flex';
   if (btnSave) btnSave.style.display = 'inline-flex';
+}
+
+function updateSorteadorMatchupTeam(matchId, slot, val) {
+  if (!currentSorteioState || !currentSorteioState.matchups) return;
+  const match = currentSorteioState.matchups.find(m => m.matchId === matchId);
+  if (!match) return;
+  const numVal = parseInt(val, 10);
+  if (slot === 'A') match.timeAIndex = numVal;
+  if (slot === 'B') match.timeBIndex = numVal;
+  renderDrawnTeams();
+}
+
+function setSorteadorMatchupPreset(a1, b1, a2, b2) {
+  if (!currentSorteioState) return;
+  currentSorteioState.matchups = [
+    { matchId: 1, label: '1º Jogo', timeAIndex: a1, timeBIndex: b1 },
+    { matchId: 2, label: '2º Jogo', timeAIndex: a2, timeBIndex: b2 }
+  ];
+  renderDrawnTeams();
+  showToast('Confrontos atualizados!', 'info');
+}
+
+function randomizeSorteadorMatchups() {
+  if (!currentSorteioState || !currentSorteioState.teams || currentSorteioState.teams.length < 4) return;
+  const idxs = [0, 1, 2, 3];
+  for (let i = idxs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+  }
+  setSorteadorMatchupPreset(idxs[0], idxs[1], idxs[2], idxs[3]);
+  showToast('🎲 Confrontos sorteados aleatoriamente!', 'success');
 }
 
 function handlePlayerSwapClick(teamIndex, playerIndex) {
@@ -37241,7 +37408,6 @@ function removePlayerFromSorteio(teamIndex, playerIndex) {
   t.totalIdade = validAges.reduce((sum, a) => sum + a, 0);
   t.mediaIdade = validAges.length > 0 ? (t.totalIdade / validAges.length).toFixed(1) : '0';
 
-  // If there are reservas, we can optionally inform user
   if (currentSorteioState.selectedForSwap && currentSorteioState.selectedForSwap.teamIndex === teamIndex && currentSorteioState.selectedForSwap.playerIndex === playerIndex) {
     currentSorteioState.selectedForSwap = null;
   }
@@ -37304,6 +37470,22 @@ function copyDrawnTeamsToWhatsApp() {
     msg += `\n`;
   }
 
+  if (currentSorteioState.teams.length === 4 && currentSorteioState.matchups) {
+    const mu = currentSorteioState.matchups;
+    const tA1 = currentSorteioState.teams[mu[0].timeAIndex] || { name: 'Time 1' };
+    const tB1 = currentSorteioState.teams[mu[0].timeBIndex] || { name: 'Time 2' };
+    const tA2 = currentSorteioState.teams[mu[1].timeAIndex] || { name: 'Time 3' };
+    const tB2 = currentSorteioState.teams[mu[1].timeBIndex] || { name: 'Time 4' };
+
+    msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🏟️ *CONFRONTOS DO SÁBADO (30 min cada):*\n`;
+    msg += `⚽ *1º Jogo:* ${tA1.name} x ${tB1.name}\n`;
+    msg += `⚽ *2º Jogo:* ${tA2.name} x ${tB2.name}\n`;
+    msg += `🔥 *3º Jogo:* Ganhador J1 x Ganhador J2 (Decisão Campeão)\n`;
+    msg += `⚡ *4º Jogo:* Perdedor J1 x Perdedor J2 (Decisão Lanterna)\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  }
+
   msg += `⚖️ *Sorteio equilibrado por nível técnico (estrelas), faixa etária (idade) e posições táticas* (E.C. São João)`;
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -37342,8 +37524,59 @@ function applyDrawnTeamsToRound() {
     }))
   }));
 
-  // Auto-generate round matches if not present
-  if (!rnd.jogos || !Array.isArray(rnd.jogos) || rnd.jogos.length === 0) {
+  // Build matches with the chosen matchups
+  if (currentSorteioState.teams.length === 4) {
+    const mu = currentSorteioState.matchups || [
+      { matchId: 1, timeAIndex: 0, timeBIndex: 1 },
+      { matchId: 2, timeAIndex: 2, timeBIndex: 3 }
+    ];
+    rnd.jogos = [
+      {
+        id: 1,
+        label: '1º Jogo',
+        type: 'jogo_1',
+        timeAIndex: mu[0].timeAIndex,
+        timeBIndex: mu[0].timeBIndex,
+        golsA: 0,
+        golsB: 0,
+        penaltyWinner: null,
+        played: false
+      },
+      {
+        id: 2,
+        label: '2º Jogo',
+        type: 'jogo_2',
+        timeAIndex: mu[1].timeAIndex,
+        timeBIndex: mu[1].timeBIndex,
+        golsA: 0,
+        golsB: 0,
+        penaltyWinner: null,
+        played: false
+      },
+      {
+        id: 3,
+        label: '3º Jogo (Ganhador J1 x Ganhador J2)',
+        type: 'ganhadores',
+        timeAIndex: mu[0].timeAIndex,
+        timeBIndex: mu[1].timeAIndex,
+        golsA: 0,
+        golsB: 0,
+        penaltyWinner: null,
+        played: false
+      },
+      {
+        id: 4,
+        label: '4º Jogo (Perdedor J1 x Perdedor J2)',
+        type: 'perdedores',
+        timeAIndex: mu[0].timeBIndex,
+        timeBIndex: mu[1].timeBIndex,
+        golsA: 0,
+        golsB: 0,
+        penaltyWinner: null,
+        played: false
+      }
+    ];
+  } else {
     rnd.jogos = generateDefaultRoundMatches(rnd);
   }
 
@@ -37658,8 +37891,8 @@ function openMatchScoresheetModal(roundNum, matchId) {
     const m3 = round.jogos.find(m => m.id === 3) || round.jogos[2];
     const m4 = round.jogos.find(m => m.id === 4) || round.jogos[3];
 
-    const res1 = resolveBracketOutcome(m1, 0, 1);
-    const res2 = resolveBracketOutcome(m2, 2, 3);
+    const res1 = resolveBracketOutcome(m1, (m1 && m1.timeAIndex !== undefined) ? m1.timeAIndex : 0, (m1 && m1.timeBIndex !== undefined) ? m1.timeBIndex : 1);
+    const res2 = resolveBracketOutcome(m2, (m2 && m2.timeAIndex !== undefined) ? m2.timeAIndex : 2, (m2 && m2.timeBIndex !== undefined) ? m2.timeBIndex : 3);
 
     if (m3) {
       m3.timeAIndex = res1.winnerIndex;
@@ -37999,6 +38232,24 @@ function renderRoundMatchesBoard(round) {
   const standings = calculateRoundStandings(currentRnd);
   const matches = currentRnd.jogos || [];
 
+  // Update dynamic routing for 3rd and 4th matches if 4 teams
+  if (currentRnd.times.length === 4 && matches.length >= 4) {
+    const m1 = matches.find(m => m.id === 1) || matches[0];
+    const m2 = matches.find(m => m.id === 2) || matches[1];
+    const m3 = matches.find(m => m.id === 3) || matches[2];
+    const m4 = matches.find(m => m.id === 4) || matches[3];
+    const res1 = resolveBracketOutcome(m1, (m1 && m1.timeAIndex !== undefined) ? m1.timeAIndex : 0, (m1 && m1.timeBIndex !== undefined) ? m1.timeBIndex : 1);
+    const res2 = resolveBracketOutcome(m2, (m2 && m2.timeAIndex !== undefined) ? m2.timeAIndex : 2, (m2 && m2.timeBIndex !== undefined) ? m2.timeBIndex : 3);
+    if (m3) {
+      m3.timeAIndex = res1.winnerIndex;
+      m3.timeBIndex = res2.winnerIndex;
+    }
+    if (m4) {
+      m4.timeAIndex = res1.loserIndex;
+      m4.timeBIndex = res2.loserIndex;
+    }
+  }
+
   container.innerHTML = `
     <div style="background:#ffffff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-top:1.5rem;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
       
@@ -38016,6 +38267,11 @@ function renderRoundMatchesBoard(round) {
           ${!isClosed && !isCampInterno && standings.length >= 2 ? `
             <button class="btn btn-warning btn-sm" onclick="applyStandingsToRoundPlayers(${currentRnd.numero})" style="font-weight:800;display:inline-flex;align-items:center;gap:0.3rem;" title="Aplica 1º lugar da Tabela como Campeão (C=1) e o último colocado como Lanterna (L=1)">
               <span>🏆</span> Aplicar Campeão e Lanterna
+            </button>
+          ` : ''}
+          ${!isClosed && currentRnd.times.length === 4 ? `
+            <button class="btn btn-secondary btn-sm" onclick="openEditMatchupsModal(${currentRnd.numero})" style="font-weight:700;display:inline-flex;align-items:center;gap:0.3rem;" title="Escolha quais times jogam entre si no 1º e 2º jogos">
+              <span>⚙️</span> Alterar Confrontos
             </button>
           ` : ''}
           <button class="btn btn-success btn-sm" onclick="copyRoundMatchesToWhatsApp(${currentRnd.numero})" style="font-weight:700;display:inline-flex;align-items:center;gap:0.3rem;">
@@ -38303,6 +38559,248 @@ function resetRoundMatches(roundNum) {
   saveAppState(false);
   renderRodadaManager();
   showToast('Placares dos jogos e súmulas zerados com sucesso!', 'info');
+}
+
+// ==========================================================================
+// MODAL: ALTERAR CONFRONTOS DA RODADA
+// ==========================================================================
+let tempEditingMatchups = null;
+
+function openEditMatchupsModal(roundNum) {
+  if (isRoundClosed(roundNum)) {
+    showToast('Esta rodada está fechada. Abra para edição primeiro.', 'warning');
+    return;
+  }
+  const round = appData.rounds?.find(r => r.numero === roundNum);
+  if (!round || !round.times || !Array.isArray(round.times) || round.times.length < 2) {
+    showToast('Esta rodada não possui times definidos.', 'warning');
+    return;
+  }
+
+  if (!round.jogos || round.jogos.length < 2) {
+    round.jogos = generateDefaultRoundMatches(round);
+  }
+
+  const m1 = round.jogos.find(m => m.id === 1) || round.jogos[0];
+  const m2 = round.jogos.find(m => m.id === 2) || round.jogos[1];
+
+  tempEditingMatchups = {
+    roundNum: roundNum,
+    match1: {
+      timeAIndex: (m1 && m1.timeAIndex !== undefined) ? m1.timeAIndex : 0,
+      timeBIndex: (m1 && m1.timeBIndex !== undefined) ? m1.timeBIndex : 1
+    },
+    match2: {
+      timeAIndex: (m2 && m2.timeAIndex !== undefined) ? m2.timeAIndex : 2,
+      timeBIndex: (m2 && m2.timeBIndex !== undefined) ? m2.timeBIndex : 3
+    }
+  };
+
+  const subtitle = document.getElementById('edit-matchups-modal-subtitle');
+  if (subtitle) {
+    subtitle.textContent = `Rodada ${roundNum} (${round.data || 'Data não definida'}) • Defina quem joga contra quem`;
+  }
+
+  renderEditMatchupsModalBody();
+  openModal('modal-edit-matchups');
+}
+
+function renderEditMatchupsModalBody() {
+  const container = document.getElementById('edit-matchups-modal-body');
+  if (!container || !tempEditingMatchups) return;
+
+  const round = appData.rounds?.find(r => r.numero === tempEditingMatchups.roundNum);
+  if (!round || !round.times) return;
+
+  const times = round.times;
+  const m1 = tempEditingMatchups.match1;
+  const m2 = tempEditingMatchups.match2;
+
+  const selectedIndices = [m1.timeAIndex, m1.timeBIndex, m2.timeAIndex, m2.timeBIndex];
+  const hasDuplicates = (new Set(selectedIndices)).size < 4;
+  const sameTeamInM1 = m1.timeAIndex === m1.timeBIndex;
+  const sameTeamInM2 = m2.timeAIndex === m2.timeBIndex;
+
+  const buildOptions = (selectedIdx) => {
+    return times.map((t, idx) => {
+      const isSel = idx === selectedIdx ? 'selected' : '';
+      return `<option value="${idx}" ${isSel}>${t.icon || '⚽'} ${escapeHtml(t.name)}</option>`;
+    }).join('');
+  };
+
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <!-- Quick Presets -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-md);padding:0.75rem;">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--text-muted);margin-bottom:0.4rem;">
+          ⚡ Atalhos Rápidos de Confrontos:
+        </div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          <button type="button" class="btn btn-secondary btn-xs" onclick="setModalMatchupPreset(0,1,2,3)" style="font-size:0.75rem;padding:4px 8px;">
+            1x2 e 3x4 (Padrão)
+          </button>
+          <button type="button" class="btn btn-secondary btn-xs" onclick="setModalMatchupPreset(0,2,1,3)" style="font-size:0.75rem;padding:4px 8px;">
+            1x3 e 2x4 (Cruzado A)
+          </button>
+          <button type="button" class="btn btn-secondary btn-xs" onclick="setModalMatchupPreset(0,3,1,2)" style="font-size:0.75rem;padding:4px 8px;">
+            1x4 e 2x3 (Cruzado B)
+          </button>
+          <button type="button" class="btn btn-secondary btn-xs" onclick="randomizeModalMatchups()" style="font-size:0.75rem;padding:4px 8px;font-weight:700;">
+            🎲 Sortear Aleatório
+          </button>
+        </div>
+      </div>
+
+      <!-- Match 1 Card -->
+      <div style="background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);padding:0.85rem 1rem;">
+        <div style="font-size:0.85rem;font-weight:800;color:var(--primary-navy);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.35rem;">
+          <span>⚽</span> 1º Jogo da Rodada
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0.6rem;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time A (Mandante)</label>
+            <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateModalMatchupTeam(1, 'A', this.value)">
+              ${buildOptions(m1.timeAIndex)}
+            </select>
+          </div>
+          <div style="font-weight:900;color:var(--text-muted);font-size:1.1rem;text-align:center;padding-top:14px;">x</div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time B (Visitante)</label>
+            <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateModalMatchupTeam(1, 'B', this.value)">
+              ${buildOptions(m1.timeBIndex)}
+            </select>
+          </div>
+        </div>
+        ${sameTeamInM1 ? `<div style="font-size:0.75rem;color:#dc2626;margin-top:4px;font-weight:600;">⚠️ Selecione dois times diferentes para o 1º Jogo.</div>` : ''}
+      </div>
+
+      <!-- Match 2 Card -->
+      <div style="background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);padding:0.85rem 1rem;">
+        <div style="font-size:0.85rem;font-weight:800;color:var(--primary-navy);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.35rem;">
+          <span>⚽</span> 2º Jogo da Rodada
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:0.6rem;">
+          <div>
+            <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time A (Mandante)</label>
+            <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateModalMatchupTeam(2, 'A', this.value)">
+              ${buildOptions(m2.timeAIndex)}
+            </select>
+          </div>
+          <div style="font-weight:900;color:var(--text-muted);font-size:1.1rem;text-align:center;padding-top:14px;">x</div>
+          <div>
+            <label style="font-size:0.72rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:2px;">Time B (Visitante)</label>
+            <select class="form-control form-control-sm" style="font-weight:700;" onchange="updateModalMatchupTeam(2, 'B', this.value)">
+              ${buildOptions(m2.timeBIndex)}
+            </select>
+          </div>
+        </div>
+        ${sameTeamInM2 ? `<div style="font-size:0.75rem;color:#dc2626;margin-top:4px;font-weight:600;">⚠️ Selecione dois times diferentes para o 2º Jogo.</div>` : ''}
+      </div>
+
+      ${hasDuplicates ? `
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius-sm);padding:0.6rem 0.85rem;font-size:0.78rem;color:#991b1b;font-weight:700;display:flex;align-items:center;gap:0.4rem;">
+          <span>⚠️</span> Atenção: Há times repetidos nos confrontos. Cada um dos 4 times deve jogar uma partida inicial diferente.
+        </div>
+      ` : ''}
+
+      <!-- Next Games Info -->
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius-sm);padding:0.6rem 0.85rem;font-size:0.78rem;color:#1e40af;line-height:1.4;">
+        <strong>Chaveamento do Sábado:</strong><br>
+        🔥 <strong>3º Jogo:</strong> Ganhador Jogo 1 x Ganhador Jogo 2 <em>(Decisão do Campeão)</em><br>
+        ⚡ <strong>4º Jogo:</strong> Perdedor Jogo 1 x Perdedor Jogo 2 <em>(Decisão do Lanterna)</em>
+      </div>
+    </div>
+  `;
+}
+
+function updateModalMatchupTeam(matchNum, slot, val) {
+  if (!tempEditingMatchups) return;
+  const numVal = parseInt(val, 10);
+  if (matchNum === 1) {
+    if (slot === 'A') tempEditingMatchups.match1.timeAIndex = numVal;
+    if (slot === 'B') tempEditingMatchups.match1.timeBIndex = numVal;
+  } else if (matchNum === 2) {
+    if (slot === 'A') tempEditingMatchups.match2.timeAIndex = numVal;
+    if (slot === 'B') tempEditingMatchups.match2.timeBIndex = numVal;
+  }
+  renderEditMatchupsModalBody();
+}
+
+function setModalMatchupPreset(a1, b1, a2, b2) {
+  if (!tempEditingMatchups) return;
+  tempEditingMatchups.match1 = { timeAIndex: a1, timeBIndex: b1 };
+  tempEditingMatchups.match2 = { timeAIndex: a2, timeBIndex: b2 };
+  renderEditMatchupsModalBody();
+}
+
+function randomizeModalMatchups() {
+  if (!tempEditingMatchups) return;
+  const idxs = [0, 1, 2, 3];
+  for (let i = idxs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+  }
+  setModalMatchupPreset(idxs[0], idxs[1], idxs[2], idxs[3]);
+  showToast('🎲 Confrontos sorteados aleatoriamente!', 'success');
+}
+
+function saveEditedRoundMatchups() {
+  if (!tempEditingMatchups) return;
+  const roundNum = tempEditingMatchups.roundNum;
+  const round = appData.rounds?.find(r => r.numero === roundNum);
+  if (!round || !round.times) return;
+
+  const m1 = tempEditingMatchups.match1;
+  const m2 = tempEditingMatchups.match2;
+
+  // Validation
+  if (m1.timeAIndex === m1.timeBIndex || m2.timeAIndex === m2.timeBIndex) {
+    showToast('Não é possível colocar um time para jogar contra ele mesmo.', 'error');
+    return;
+  }
+  const selectedIndices = [m1.timeAIndex, m1.timeBIndex, m2.timeAIndex, m2.timeBIndex];
+  if ((new Set(selectedIndices)).size < 4) {
+    if (!confirm('Há times repetidos escalados nos jogos 1 e 2. Deseja salvar mesmo assim?')) {
+      return;
+    }
+  }
+
+  // Ensure round.jogos exists
+  if (!round.jogos || round.jogos.length === 0) {
+    round.jogos = generateDefaultRoundMatches(round);
+  }
+
+  const match1 = round.jogos.find(m => m.id === 1) || round.jogos[0];
+  const match2 = round.jogos.find(m => m.id === 2) || round.jogos[1];
+  const match3 = round.jogos.find(m => m.id === 3) || round.jogos[2];
+  const match4 = round.jogos.find(m => m.id === 4) || round.jogos[3];
+
+  if (match1) {
+    match1.timeAIndex = m1.timeAIndex;
+    match1.timeBIndex = m1.timeBIndex;
+  }
+  if (match2) {
+    match2.timeAIndex = m2.timeAIndex;
+    match2.timeBIndex = m2.timeBIndex;
+  }
+
+  // Re-resolve bracket outcome for match 3 and 4
+  const res1 = resolveBracketOutcome(match1, m1.timeAIndex, m1.timeBIndex);
+  const res2 = resolveBracketOutcome(match2, m2.timeAIndex, m2.timeBIndex);
+  if (match3) {
+    match3.timeAIndex = res1.winnerIndex;
+    match3.timeBIndex = res2.winnerIndex;
+  }
+  if (match4) {
+    match4.timeAIndex = res1.loserIndex;
+    match4.timeBIndex = res2.loserIndex;
+  }
+
+  saveAppState(false);
+  closeModal('modal-edit-matchups');
+  tempEditingMatchups = null;
+  renderRoundMatchesBoard(round);
+  showToast('Confrontos da rodada atualizados com sucesso!', 'success');
 }
 
 function applyStandingsToRoundPlayers(roundNum) {
