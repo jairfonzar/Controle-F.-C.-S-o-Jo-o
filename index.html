@@ -25521,6 +25521,9 @@ const initialData = {
                                  ]
 };
 
+window.INITIAL_SAO_JOAO_DATA = initialData;
+window.initialData = initialData;
+
 
 /**
  * CLUBE DE FUTEBOL SÃO JOÃO 2026
@@ -26196,13 +26199,14 @@ function initAppState() {
       }
 
       // Ensure Cash Flow (Fluxo de Caixa) is always populated and never lost
-      if (!appData.fluxoCaixa || !Array.isArray(appData.fluxoCaixa) || appData.fluxoCaixa.length < (window.INITIAL_SAO_JOAO_DATA?.fluxoCaixa?.length || 0)) {
-        if (window.INITIAL_SAO_JOAO_DATA && window.INITIAL_SAO_JOAO_DATA.fluxoCaixa && window.INITIAL_SAO_JOAO_DATA.fluxoCaixa.length > 0) {
-          const initialMap = new Set((window.INITIAL_SAO_JOAO_DATA.fluxoCaixa || []).map(t => `${t.data}_${t.tipo}_${t.valor}_${t.descricao}`));
+      const seedDataObj = window.INITIAL_SAO_JOAO_DATA || (typeof initialData !== 'undefined' ? initialData : null);
+      if (!appData.fluxoCaixa || !Array.isArray(appData.fluxoCaixa) || appData.fluxoCaixa.length < (seedDataObj?.fluxoCaixa?.length || 0)) {
+        if (seedDataObj && seedDataObj.fluxoCaixa && seedDataObj.fluxoCaixa.length > 0) {
+          const initialMap = new Set((seedDataObj.fluxoCaixa || []).map(t => `${t.data}_${t.tipo}_${t.valor}_${t.descricao}`));
           const currentCustom = (appData.fluxoCaixa || []).filter(t => !initialMap.has(`${t.data}_${t.tipo}_${t.valor}_${t.descricao}`));
           
           appData.fluxoCaixa = [
-            ...JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA.fluxoCaixa)),
+            ...JSON.parse(JSON.stringify(seedDataObj.fluxoCaixa)),
             ...currentCustom
           ];
           console.log(`Restaurados ${appData.fluxoCaixa.length} lançamentos do Fluxo de Caixa!`);
@@ -26210,23 +26214,37 @@ function initAppState() {
       }
 
       if (!appData.aniversariantesParceiros) {
-        appData.aniversariantesParceiros = JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA.aniversariantesParceiros || []));
+        appData.aniversariantesParceiros = JSON.parse(JSON.stringify(seedDataObj?.aniversariantesParceiros || []));
       }
       saveAppState(false, false);
       console.log('Dados carregados do localStorage com sucesso!');
-    } else if (window.INITIAL_SAO_JOAO_DATA) {
-      appData = JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA));
-      appData.dataVersion = 11;
-      saveAppState(false, false);
-      console.log('Dados iniciais carregados com sucesso!');
     } else {
-      console.error('Dados iniciais não encontrados.');
+      const seedDataObj = window.INITIAL_SAO_JOAO_DATA || (typeof initialData !== 'undefined' ? initialData : null);
+      if (seedDataObj) {
+        appData = JSON.parse(JSON.stringify(seedDataObj));
+        appData.dataVersion = 11;
+        saveAppState(false, false);
+        console.log('Dados iniciais carregados com sucesso!');
+      } else {
+        console.error('Dados iniciais não encontrados.');
+      }
     }
   } catch (err) {
     console.error('Erro ao inicializar estado:', err);
-    if (window.INITIAL_SAO_JOAO_DATA) {
-      appData = JSON.parse(JSON.stringify(window.INITIAL_SAO_JOAO_DATA));
-      appData.dataVersion = 10;
+    const seedDataObj = window.INITIAL_SAO_JOAO_DATA || (typeof initialData !== 'undefined' ? initialData : null);
+    if (seedDataObj) {
+      appData = JSON.parse(JSON.stringify(seedDataObj));
+      appData.dataVersion = 11;
+    }
+  }
+
+  // Absolute safety net: ensure appData is never null or undefined
+  if (!appData) {
+    const seedDataObj = window.INITIAL_SAO_JOAO_DATA || (typeof initialData !== 'undefined' ? initialData : null);
+    if (seedDataObj) {
+      appData = JSON.parse(JSON.stringify(seedDataObj));
+    } else {
+      appData = { players: [], rounds: [], fluxoCaixa: [], aniversariantesParceiros: [], configuracoes: {} };
     }
   }
 
@@ -39058,10 +39076,6 @@ function saveAndFinalizeMatchScoresheet() {
       pl.rodadas[roundNum].p = 1;
       pl.rodadas[roundNum].g = roundPlayerAggregates[pl.id].g;
       pl.rodadas[roundNum].gc = roundPlayerAggregates[pl.id].gc;
-      pl.rodadas[roundNum].ca = roundPlayerAggregates[pl.id].ca;
-      pl.rodadas[roundNum].cv = roundPlayerAggregates[pl.id].cv;
-    }
-  });
       pl.rodadas[roundNum].ca = roundPlayerAggregates[pl.id].ca;
       pl.rodadas[roundNum].cv = roundPlayerAggregates[pl.id].cv;
     }
