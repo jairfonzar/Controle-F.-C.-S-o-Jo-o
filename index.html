@@ -27585,6 +27585,33 @@ function updateHeaderBadges() {
   }
 }
 
+function getPlayedRoundsCount() {
+  if (!appData) return 1;
+  const players = appData.players || [];
+  const rounds = appData.rounds || [];
+  
+  let count = 0;
+  rounds.forEach(r => {
+    let rPres = 0;
+    players.forEach(p => {
+      const pr = p.rodadas && p.rodadas[r.numero];
+      if (pr && pr.p) rPres += pr.p;
+    });
+    if (rPres > 0 || r.status === 'closed' || r.campeao || (r.jogos && r.jogos.some(j => j.played))) {
+      count++;
+    }
+  });
+
+  // Ensure count is never less than the highest number of games any player has attended
+  let maxPlayerPresenca = 0;
+  players.forEach(p => {
+    const pres = (p.estatisticas && p.estatisticas.presenca) || 0;
+    if (pres > maxPlayerPresenca) maxPlayerPresenca = pres;
+  });
+
+  return Math.max(count, maxPlayerPresenca, 1);
+}
+
 // ==========================================================================
 // 5. DASHBOARD RENDERER
 // ==========================================================================
@@ -28017,7 +28044,11 @@ function renderLeaderboards() {
         <span class="badge badge-green">Top 10</span>
       </div>
       <ul class="leader-list">
-        ${buildListHtml(topPresenca, p => `${p.estatisticas.presenca} jogos`, p => `${Math.round((p.estatisticas.presenca / 34) * 100)}% (${p.estatisticas.presenca}/34)`)}
+        ${buildListHtml(topPresenca, p => `${p.estatisticas.presenca} jogos`, p => {
+          const totalDisputedRounds = getPlayedRoundsCount();
+          const pct = Math.min(100, Math.round((p.estatisticas.presenca / totalDisputedRounds) * 100));
+          return `${pct}% (${p.estatisticas.presenca}/${totalDisputedRounds})`;
+        })}
       </ul>
       <div class="card-footer" style="padding:0.65rem 1rem;background:#fafafa;border-top:1px solid var(--border);text-align:center;">
         <button class="btn btn-secondary btn-sm" style="width:100%;font-weight:600;" onclick="openRankingModal('presenca')">
@@ -28087,8 +28118,9 @@ function openRankingModal(categoryKey) {
       sortedList = [...players].sort((a, b) => (b.estatisticas.campeao - a.estatisticas.campeao) || (b.estatisticas.campeaoAbsoluto - a.estatisticas.campeaoAbsoluto));
       break;
     case 'presenca':
+      const totalDisputedRoundsModal = getPlayedRoundsCount();
       title = '🗓️ Frequência & Presença nas Rodadas';
-      subtitle = 'Classificação de assiduidade nas 34 rodadas disputadas no ano';
+      subtitle = `Classificação de assiduidade nas ${totalDisputedRoundsModal} rodadas disputadas no ano`;
       sortedList = [...players].sort((a, b) => (b.estatisticas.presenca - a.estatisticas.presenca) || (b.estatisticas.eficiencia - a.estatisticas.eficiencia));
       break;
     case 'eficiencia':
@@ -28258,10 +28290,11 @@ function renderRankingModalTable(list) {
         <td style="text-align:center;">${p.estatisticas.eficiencia}%</td>
       `;
     } else if (cat === 'presenca') {
-      const freq = Math.round((p.estatisticas.presenca / 34) * 100);
+      const totalDisputedRoundsModal = getPlayedRoundsCount();
+      const freq = Math.min(100, Math.round((p.estatisticas.presenca / totalDisputedRoundsModal) * 100));
       rowData = `
         <td style="text-align:center;font-weight:800;font-size:1.05rem;color:#1d4ed8;">${p.estatisticas.presenca}</td>
-        <td style="text-align:center;font-weight:600;">${freq}%</td>
+        <td style="text-align:center;font-weight:600;">${freq}% (${p.estatisticas.presenca}/${totalDisputedRoundsModal})</td>
         <td style="text-align:center;">${p.estatisticas.campeao}</td>
         <td style="text-align:center;">${p.estatisticas.gols}</td>
       `;
@@ -28319,8 +28352,9 @@ function renderDashboardCharts(rounds, players) {
   // Calculate goals and presence per round
   const roundStats = [];
   let maxGoals = 1;
+  const totalRoundsToChart = getPlayedRoundsCount();
 
-  for (let rnd = 1; rnd <= 34; rnd++) {
+  for (let rnd = 1; rnd <= totalRoundsToChart; rnd++) {
     let goals = 0;
     let presence = 0;
     players.forEach(p => {
