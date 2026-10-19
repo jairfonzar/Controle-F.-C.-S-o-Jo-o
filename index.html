@@ -2508,6 +2508,14 @@ body:not(.is-master) [data-master-only="true"] {
   color: #dc2626;
 }
 
+.scoresheet-pill.pill-gc {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+.scoresheet-pill.pill-gc .pill-val {
+  color: #c2410c;
+}
+
 
 </style>
   <meta name="theme-color" content="#0f2b5c">
@@ -2763,6 +2771,9 @@ body:not(.is-master) [data-master-only="true"] {
           <p>Cadastro, fichas individuais e acompanhamento dos associados</p>
         </div>
         <div class="section-actions" data-admin-only="true">
+          <button class="btn btn-secondary btn-sm" onclick="exportSociosListCSV()" style="font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;margin-right:0.4rem;" title="Exportar a relação exibida para planilha Excel (.csv)">
+            <span>📥</span> Exportar Lista (CSV)
+          </button>
           <button class="btn btn-gold btn-sm" onclick="openBatchPhotoImportModal()" style="font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;margin-right:0.4rem;" title="Importar fotos dos atletas em lote do WhatsApp / computador">
             <span>📷</span> Importar Fotos em Lote
           </button>
@@ -2774,6 +2785,9 @@ body:not(.is-master) [data-master-only="true"] {
           </button>
         </div>
       </div>
+
+      <!-- Totalizadores do Quadro de Sócios -->
+      <div id="socios-totalizers" style="margin-bottom:1rem;"></div>
 
       <!-- Filter Bar -->
       <div class="filter-bar">
@@ -2788,6 +2802,10 @@ body:not(.is-master) [data-master-only="true"] {
           <option value="MACHUCADOS">Apenas Sócios (Machucados)</option>
           <option value="INATIVOS">Apenas Convidados / Ex-sócios</option>
         </select>
+
+        <button class="btn btn-secondary btn-sm" onclick="exportSociosListCSV()" style="font-weight:700;display:inline-flex;align-items:center;gap:0.35rem;white-space:nowrap;" title="Exportar a lista exibida para planilha Excel (.csv)">
+          <span>📥</span> Exportar CSV
+        </button>
       </div>
 
       <!-- Socios Cards Grid -->
@@ -3824,6 +3842,52 @@ body:not(.is-master) [data-master-only="true"] {
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('modal-edit-matchups')">Cancelar</button>
         <button class="btn btn-primary" onclick="saveEditedRoundMatchups()">Salvar Confrontos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Mover Jogador entre Equipes ou para Sem Time Fixo -->
+  <div class="modal-overlay" id="modal-move-player">
+    <div class="modal-box" style="max-width:540px;width:94%;">
+      <div class="modal-header">
+        <div>
+          <h3 style="display:flex;align-items:center;gap:0.4rem;color:var(--primary-navy);margin-bottom:2px;">
+            <span>➡️</span> Mover Atleta de Equipe
+          </h3>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin:0;" id="move-player-modal-subtitle">
+            Transfira o jogador para outro time ou para a lista de atletas presentes sem time fixo
+          </p>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-move-player')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        <div id="move-player-modal-body"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-move-player')">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Adicionar Presente Sem Time Fixo (Goleiro / Rodízio) -->
+  <div class="modal-overlay" id="modal-add-unassigned">
+    <div class="modal-box" style="max-width:560px;width:94%;">
+      <div class="modal-header">
+        <div>
+          <h3 style="display:flex;align-items:center;gap:0.4rem;color:var(--primary-navy);margin-bottom:2px;">
+            <span>🧤</span> Marcar Presente Sem Time Fixo (Rodízio)
+          </h3>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">
+            Goleiros ou atletas presentes no dia que jogam em rodízio, sem time fixo
+          </p>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-add-unassigned')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1.25rem;">
+        <div id="add-unassigned-modal-body"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-add-unassigned')">Fechar</button>
       </div>
     </div>
   </div>
@@ -27842,8 +27906,9 @@ function renderLeaderboards() {
     .sort((a, b) => (b.estatisticas.presenca - a.estatisticas.presenca) || (b.estatisticas.eficiencia - a.estatisticas.eficiencia))
     .slice(0, 10);
 
-  // 5. Maior Eficiência (Min 5 jogos para permitir disputa justa)
-  const topEficiencia = [...players]
+  // 5. Maior Eficiência (Apenas Sócios Ativos, Mín 5 jogos para permitir disputa justa)
+  const activeMembersForEficiencia = players.filter(p => (p.statusSocio === 'Ativo' || (!p.statusSocio && p.ativo)));
+  const topEficiencia = activeMembersForEficiencia
     .filter(p => p.estatisticas.presenca >= 5)
     .sort((a, b) => (b.estatisticas.eficiencia - a.estatisticas.eficiencia) || (b.estatisticas.campeao - a.estatisticas.campeao))
     .slice(0, 10);
@@ -27947,14 +28012,14 @@ function renderLeaderboards() {
     <div class="leaderboard-card">
       <div class="card-header">
         <h3>🎯 Eficiência (% Vitórias)</h3>
-        <span class="badge badge-pos">Top 10 (Mín. 5j)</span>
+        <span class="badge badge-pos">Top 10 Sócios Ativos (Mín. 5j)</span>
       </div>
       <ul class="leader-list">
         ${buildListHtml(topEficiencia, p => `${p.estatisticas.eficiencia}%`, p => `${p.estatisticas.campeao} tit / ${p.estatisticas.presenca} j`)}
       </ul>
       <div class="card-footer" style="padding:0.65rem 1rem;background:#fafafa;border-top:1px solid var(--border);text-align:center;">
         <button class="btn btn-secondary btn-sm" style="width:100%;font-weight:600;" onclick="openRankingModal('eficiencia')">
-          📋 Ver Lista Completa (${players.filter(p => p.estatisticas.presenca >= 5).length} atletas)
+          📋 Ver Lista Completa (${activeMembersForEficiencia.filter(p => p.estatisticas.presenca >= 5).length} sócios ativos)
         </button>
       </div>
     </div>
@@ -28010,9 +28075,9 @@ function openRankingModal(categoryKey) {
       break;
     case 'eficiencia':
       title = '🎯 Eficiência (% de Aproveitamento de Vitórias)';
-      subtitle = 'Percentual de títulos em relação às partidas disputadas (mínimo de 5 jogos)';
+      subtitle = 'Percentual de títulos em relação às partidas disputadas (apenas Sócios Ativos, mínimo de 5 jogos)';
       sortedList = [...players]
-        .filter(p => p.estatisticas.presenca >= 5)
+        .filter(p => (p.statusSocio === 'Ativo' || (!p.statusSocio && p.ativo)) && p.estatisticas.presenca >= 5)
         .sort((a, b) => (b.estatisticas.eficiencia - a.estatisticas.eficiencia) || (b.estatisticas.campeao - a.estatisticas.campeao));
       break;
     case 'cartoes':
@@ -29423,8 +29488,12 @@ function renderRodadaManager() {
                             <button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:0.68rem;height:22px;" onclick="handleRoundBoardPlayerSwap(${tIdx}, ${pIdx})" title="Inverter este jogador com atleta de outro time">
                               ${isSwapTarget ? '✕' : '⇄'}
                             </button>
+                            <!-- Move to another team or unassigned -->
+                            <button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:0.68rem;height:22px;color:#2563eb;" onclick="openMovePlayerModal(${tIdx}, ${pIdx})" title="Mover este jogador para outro time ou para Lista de Presentes Sem Time">
+                              ➡️
+                            </button>
                             <!-- Remove from team -->
-                            <button class="btn btn-secondary btn-sm" style="padding:1px 4px;font-size:0.68rem;height:22px;color:#b91c1c;" onclick="removePlayerFromRoundTeam(${tIdx}, ${pIdx})" title="Remover do time">
+                            <button class="btn btn-secondary btn-sm" style="padding:1px 4px;font-size:0.68rem;height:22px;color:#b91c1c;" onclick="removePlayerFromRoundTeam(${tIdx}, ${pIdx})" title="Remover do time e desmarcar presença">
                               ✕
                             </button>
                           ` : ''}
@@ -29447,6 +29516,86 @@ function renderRodadaManager() {
             `;
           }).join('')}
         </div>
+
+        <!-- Goleiros e Atletas Presentes Sem Time Fixo (Rodízio) -->
+        ${(() => {
+          const assignedIds = new Set();
+          (currentRound.times || []).forEach(tm => (tm.jogadores || []).forEach(pj => assignedIds.add(pj.id)));
+          const unassignedPresent = (appData.players || []).filter(pl => {
+            const rData = pl.rodadas && pl.rodadas[currentRoundNum];
+            return rData && rData.p === 1 && !assignedIds.has(pl.id);
+          });
+
+          return `
+            <div style="margin-top:1.25rem;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;border-bottom:1px solid #f1f5f9;padding-bottom:0.5rem;">
+                <div>
+                  <h4 style="margin:0;font-size:0.95rem;font-weight:800;color:var(--primary-navy);display:flex;align-items:center;gap:0.4rem;">
+                    <span>🧤</span> Goleiros & Atletas Presentes Sem Time Fixo (${unassignedPresent.length})
+                  </h4>
+                  <p style="margin:2px 0 0 0;font-size:0.78rem;color:var(--text-muted);">
+                    Atletas presentes no dia da rodada que jogam em rodízio (goleiros neutros ou apoio) sem estarem presos a uma equipe específica
+                  </p>
+                </div>
+                ${!isClosed ? `
+                  <button class="btn btn-secondary btn-sm" onclick="openAddUnassignedPresentPlayerModal(${currentRoundNum})" style="font-weight:700;font-size:0.75rem;padding:4px 10px;display:inline-flex;align-items:center;gap:0.3rem;">
+                    <span>➕</span> Adicionar Presente Sem Time Fixo
+                  </button>
+                ` : ''}
+              </div>
+
+              ${unassignedPresent.length === 0 ? `
+                <div style="padding:0.85rem 1rem;text-align:center;color:var(--text-muted);font-size:0.82rem;background:#f8fafc;border-radius:var(--radius-md);border:1px dashed #e2e8f0;">
+                  Nenhum goleiro ou atleta avulso presente sem time fixo nesta rodada.
+                  ${!isClosed ? 'Utilize o botão acima ou mova um jogador excedente de uma equipe para cá.' : ''}
+                </div>
+              ` : `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(290px, 1fr));gap:0.6rem;">
+                  ${unassignedPresent.map(pl => {
+                    const rData = (pl.rodadas && pl.rodadas[currentRoundNum]) || { p: 1, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
+                    const parsed = parsePlayerPositions(pl.posicao);
+                    const isGoleiro = (pl.posicao || '').toLowerCase().includes('goleiro');
+                    const bClass = posBadgeClass[parsed.pos1] || (isGoleiro ? 'pos-badge-goleiro' : 'pos-badge-meia-armacao');
+                    const icon = posIcons[parsed.pos1] || (isGoleiro ? '🧤' : '⚽');
+
+                    return `
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.45rem 0.65rem;border-radius:6px;border:1px solid #cbd5e1;background:#f8fafc;font-size:0.82rem;">
+                        <div style="display:flex;align-items:center;gap:0.4rem;overflow:hidden;flex:1;min-width:0;">
+                          ${renderPlayerAvatarHtml(pl, 'player-avatar-xs')}
+                          <span class="pos-badge-sm ${bClass}" style="font-size:0.65rem;padding:1px 5px;" title="${escapeHtml(pl.posicao || '')}">${icon} ${parsed.pos1}</span>
+                          <span style="font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(pl.nome)}">
+                            ${escapeHtml(pl.nome)}
+                          </span>
+                        </div>
+
+                        <!-- Mini stats controller -->
+                        <div style="display:flex;align-items:center;gap:0.3rem;flex-shrink:0;">
+                          <div class="counter-control" style="transform:scale(0.85);margin:-2px 0;" title="Gols marcados">
+                            <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${pl.id}, 'g', -1)"`}>-</button>
+                            <span class="counter-val" id="val-g-${pl.id}" style="min-width:14px;font-size:0.75rem;">${rData.g || 0}</span>
+                            <button class="counter-btn" ${isClosed ? 'disabled style="opacity:0.25;cursor:not-allowed;"' : `onclick="adjustPlayerRoundStat(${pl.id}, 'g', 1)"`}>+</button>
+                          </div>
+
+                          ${!isClosed && currentRound.times && currentRound.times.length > 0 ? `
+                            <button class="btn btn-secondary btn-sm" style="padding:1px 6px;font-size:0.7rem;height:22px;color:#2563eb;" onclick="openAssignUnassignedToTeamModal(${pl.id})" title="Escalar este atleta em uma das equipes">
+                              ➡️ Escalar
+                            </button>
+                          ` : ''}
+
+                          ${!isClosed ? `
+                            <button class="btn btn-secondary btn-sm" style="padding:1px 5px;font-size:0.7rem;height:22px;color:#b91c1c;" onclick="removeUnassignedPresence(${pl.id})" title="Desmarcar presença deste atleta">
+                              ✕
+                            </button>
+                          ` : ''}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+          `;
+        })()}
       </div>
     `;
   } else {
@@ -29467,6 +29616,41 @@ function renderRodadaManager() {
           </button>
         `}
       </div>
+
+      <!-- Presentes Sem Time Fixo mesmo antes de sortear -->
+      ${(() => {
+        const unassignedPresent = (appData.players || []).filter(pl => {
+          const rData = pl.rodadas && pl.rodadas[currentRoundNum];
+          return rData && rData.p === 1;
+        });
+        if (unassignedPresent.length === 0) return '';
+
+        return `
+          <div style="margin-bottom:1.5rem;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);padding:1rem 1.25rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+              <h4 style="margin:0;font-size:0.95rem;font-weight:800;color:var(--primary-navy);display:flex;align-items:center;gap:0.4rem;">
+                <span>🧤</span> Atletas Já Marcados como Presentes no Sábado (${unassignedPresent.length})
+              </h4>
+              ${!isClosed ? `
+                <button class="btn btn-secondary btn-sm" onclick="openAddUnassignedPresentPlayerModal(${currentRoundNum})" style="font-weight:700;font-size:0.75rem;padding:4px 10px;">
+                  <span>➕</span> Marcar Goleiro / Atleta Avulso
+                </button>
+              ` : ''}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+              ${unassignedPresent.map(pl => {
+                const isGol = (pl.posicao || '').toLowerCase().includes('goleiro');
+                return `
+                  <span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:20px;padding:3px 10px;font-size:0.8rem;font-weight:700;color:var(--text-main);">
+                    <span>${isGol ? '🧤' : '⚽'}</span> ${escapeHtml(pl.nome)}
+                    ${!isClosed ? `<button onclick="removeUnassignedPresence(${pl.id})" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:0.8rem;padding:0 2px;" title="Desmarcar">&times;</button>` : ''}
+                  </span>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      })()}
     `;
   }
 
@@ -30090,6 +30274,12 @@ function sortSociosTable(col) {
   renderSocios();
 }
 
+function setSociosFilterQuick(status) {
+  const select = document.getElementById('filter-socios-status');
+  if (select) select.value = status;
+  renderSocios();
+}
+
 function renderSocios() {
   const container = document.getElementById('socios-list');
   if (!container) return;
@@ -30097,7 +30287,13 @@ function renderSocios() {
   const searchVal = (document.getElementById('search-socios')?.value || '').toLowerCase().trim();
   const filterStatus = document.getElementById('filter-socios-status')?.value || 'TODOS';
 
-  let filtered = (appData.players || []).filter(p => {
+  const allPlayers = appData.players || [];
+  const totalAll = allPlayers.length;
+  const totalAtivos = allPlayers.filter(p => (p.statusSocio === 'Ativo' || (!p.statusSocio && p.ativo))).length;
+  const totalMachucados = allPlayers.filter(p => (p.statusSocio === 'Sócio (machucado)' || (p.statusSocio || '').toLowerCase().includes('machucado'))).length;
+  const totalInativos = totalAll - totalAtivos - totalMachucados;
+
+  let filtered = allPlayers.filter(p => {
     if (searchVal) {
       const parsed = parsePlayerPositions(p.posicao);
       const match = (p.nome || '').toLowerCase().includes(searchVal) ||
@@ -30115,6 +30311,64 @@ function renderSocios() {
     if (filterStatus === 'INATIVOS' && (isAtivoStatus || isMachucadoStatus)) return false;
     return true;
   });
+
+  // Render Totalizers Cards
+  const totalizersEl = document.getElementById('socios-totalizers');
+  if (totalizersEl) {
+    totalizersEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:0.75rem;">
+        <!-- Sócios Ativos -->
+        <div onclick="setSociosFilterQuick('ATIVOS')" style="cursor:pointer;background:#ffffff;border:2px solid ${filterStatus === 'ATIVOS' ? '#16a34a' : '#bbf7d0'};border-radius:var(--radius-md);padding:0.75rem 1rem;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:all 0.2s;" title="Clique para filtrar apenas sócios ativos">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.78rem;font-weight:700;color:#15803d;text-transform:uppercase;">Sócios Ativos</span>
+            <span style="font-size:1.1rem;">🟢</span>
+          </div>
+          <div style="font-size:1.6rem;font-weight:900;color:#15803d;margin:2px 0;">${totalAtivos}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);">${((totalAtivos / (totalAll || 1)) * 100).toFixed(0)}% do quadro total</div>
+        </div>
+
+        <!-- Sócios Machucados -->
+        <div onclick="setSociosFilterQuick('MACHUCADOS')" style="cursor:pointer;background:#ffffff;border:2px solid ${filterStatus === 'MACHUCADOS' ? '#d97706' : '#fde68a'};border-radius:var(--radius-md);padding:0.75rem 1rem;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:all 0.2s;" title="Clique para filtrar sócios machucados">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.78rem;font-weight:700;color:#b45309;text-transform:uppercase;">Machucados</span>
+            <span style="font-size:1.1rem;">🩹</span>
+          </div>
+          <div style="font-size:1.6rem;font-weight:900;color:#b45309;margin:2px 0;">${totalMachucados}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);">Afastados / DM</div>
+        </div>
+
+        <!-- Convidados / Ex-Sócios -->
+        <div onclick="setSociosFilterQuick('INATIVOS')" style="cursor:pointer;background:#ffffff;border:2px solid ${filterStatus === 'INATIVOS' ? '#64748b' : '#e2e8f0'};border-radius:var(--radius-md);padding:0.75rem 1rem;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:all 0.2s;" title="Clique para filtrar convidados e ex-sócios">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.78rem;font-weight:700;color:#475569;text-transform:uppercase;">Convidados / Outros</span>
+            <span style="font-size:1.1rem;">👤</span>
+          </div>
+          <div style="font-size:1.6rem;font-weight:900;color:#475569;margin:2px 0;">${totalInativos}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);">Não-associados</div>
+        </div>
+
+        <!-- Total Geral -->
+        <div onclick="setSociosFilterQuick('TODOS')" style="cursor:pointer;background:#ffffff;border:2px solid ${filterStatus === 'TODOS' && !searchVal ? 'var(--primary)' : '#cbd5e1'};border-radius:var(--radius-md);padding:0.75rem 1rem;box-shadow:0 1px 4px rgba(0,0,0,0.05);transition:all 0.2s;" title="Clique para ver todos os atletas cadastrados">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.78rem;font-weight:700;color:var(--primary-navy);text-transform:uppercase;">Total de Atletas</span>
+            <span style="font-size:1.1rem;">📋</span>
+          </div>
+          <div style="font-size:1.6rem;font-weight:900;color:var(--primary-navy);margin:2px 0;">${totalAll}</div>
+          <div style="font-size:0.72rem;color:var(--text-muted);">Geral no sistema</div>
+        </div>
+
+        <!-- Exibidos no Filtro -->
+        <div style="background:#eff6ff;border:2px solid #3b82f6;border-radius:var(--radius-md);padding:0.75rem 1rem;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.78rem;font-weight:800;color:#1e40af;text-transform:uppercase;">Exibindo no Filtro</span>
+            <span style="font-size:1.1rem;">🔍</span>
+          </div>
+          <div style="font-size:1.6rem;font-weight:900;color:#1e40af;margin:2px 0;">${filtered.length}</div>
+          <div style="font-size:0.72rem;color:#1e40af;font-weight:600;">${filtered.length === totalAll ? 'Mostrando todos' : `Filtrados de ${totalAll}`}</div>
+        </div>
+      </div>
+    `;
+  }
 
   const sortCol = currentSociosSort.col;
   const sortAsc = currentSociosSort.asc;
@@ -35698,6 +35952,61 @@ function exportStatsCSV(silent = false) {
   downloadCSV(csv, 'estatisticas_sao_joao_2026.csv', silent);
 }
 
+function exportSociosListCSV() {
+  const searchVal = (document.getElementById('search-socios')?.value || '').toLowerCase().trim();
+  const filterStatus = document.getElementById('filter-socios-status')?.value || 'TODOS';
+
+  let listToExport = (appData.players || []).filter(p => {
+    if (searchVal) {
+      const parsed = parsePlayerPositions(p.posicao);
+      const match = (p.nome || '').toLowerCase().includes(searchVal) ||
+                    (p.posicao || '').toLowerCase().includes(searchVal) ||
+                    parsed.pos1.toLowerCase().includes(searchVal) ||
+                    parsed.pos2.toLowerCase().includes(searchVal) ||
+                    (p.telefone || '').includes(searchVal);
+      if (!match) return false;
+    }
+    const isAtivoStatus = (p.statusSocio === 'Ativo' || (!p.statusSocio && p.ativo));
+    const isMachucadoStatus = (p.statusSocio === 'Sócio (machucado)' || (p.statusSocio || '').toLowerCase().includes('machucado'));
+
+    if (filterStatus === 'ATIVOS' && !isAtivoStatus) return false;
+    if (filterStatus === 'MACHUCADOS' && !isMachucadoStatus) return false;
+    if (filterStatus === 'INATIVOS' && (isAtivoStatus || isMachucadoStatus)) return false;
+    return true;
+  });
+
+  if (listToExport.length === 0) {
+    showToast('Nenhum sócio na lista atual para exportar.', 'warning');
+    return;
+  }
+
+  let csv = 'Seq;Nome;Apelido;1ª Posição;2ª Posição;Idade;Data Nascimento;Telefone;Status;Presenças;Gols;Campeão;Lanterna;Eficiência (%);Saldo (C-L)';
+  if (isMasterAdmin) csv += ';Qualidade (★)';
+  csv += '\n';
+
+  listToExport.forEach(p => {
+    const parsed = parsePlayerPositions(p.posicao);
+    const status = p.statusSocio || (p.ativo ? 'Ativo' : 'Convidado');
+    const pres = p.estatisticas?.presenca || 0;
+    const gols = p.estatisticas?.gols || 0;
+    const camp = p.estatisticas?.campeao || 0;
+    const lant = p.estatisticas?.lanterna || 0;
+    const efic = (p.estatisticas?.eficiencia || 0).toFixed(1);
+    const saldo = p.estatisticas?.campeaoAbsoluto || (camp - lant);
+    const tel = p.telefone ? `"${p.telefone}"` : '""';
+
+    let row = `${p.seq || p.id};"${p.nome}";"${p.apelido || ''}";"${parsed.pos1}";"${parsed.pos2 || ''}";${p.idade || ''};"${p.nascimento || ''}";${tel};"${status}";${pres};${gols};${camp};${lant};"${efic}%";${saldo}`;
+    if (isMasterAdmin) {
+      row += `;${parseQualityNumber(p.qualidade).toFixed(1)}`;
+    }
+    csv += row + '\n';
+  });
+
+  const filterSuffix = filterStatus !== 'TODOS' ? `_${filterStatus.toLowerCase()}` : '';
+  downloadCSV(csv, `socios_sao_joao_2026${filterSuffix}.csv`, false);
+  showToast(`Relação de ${listToExport.length} atletas exportada com sucesso!`, 'success');
+}
+
 function exportDuesReportCSV(silent = false) {
   let csv = 'Nome;Status;' + MESES.map(m => m.nome).join(';') + ';Total Pago;Total Pendente\n';
   appData.players.forEach(p => {
@@ -37122,6 +37431,9 @@ function renderDrawnTeams() {
                   <button class="btn-swap-slot" onclick="handlePlayerSwapClick(${tIdx}, ${pIdx})" title="Trocar este jogador com outro atleta">
                     ${isSwapTarget ? '✕ Cancelar' : '⇄ Trocar'}
                   </button>
+                  <button class="btn-swap-slot" onclick="openMovePlayerInSorteadorModal(${tIdx}, ${pIdx})" title="Mover este jogador para outro time ou reservas" style="color:#2563eb;border-color:#bfdbfe;">
+                    ➡️ Mover
+                  </button>
                   <button class="btn-swap-slot" style="color:#b91c1c;border-color:#fecaca;" onclick="removePlayerFromSorteio(${tIdx}, ${pIdx})" title="Remover este jogador do time (atleta faltou / ausente)">
                     ✕
                   </button>
@@ -37417,9 +37729,14 @@ function removePlayerFromSorteio(teamIndex, playerIndex) {
 }
 
 function copyDrawnTeamsToWhatsApp() {
-  if (!currentSorteioState || !currentSorteioState.teams) return;
   const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
   const dataStr = rnd?.data || '';
+  const teams = (currentSorteioState && currentSorteioState.teams) || (rnd && rnd.times) || [];
+
+  if (!teams || teams.length === 0) {
+    showToast('Nenhum time disponível nesta rodada para copiar.', 'warning');
+    return;
+  }
 
   let msg = `⚽ *ESPORTE CLUBE SÃO JOÃO - ESCALAÇÃO DA RODADA* ⚽\n`;
   msg += `📅 *Data:* ${dataStr} | *${currentRoundNum}ª Rodada*\n`;
@@ -37435,9 +37752,9 @@ function copyDrawnTeamsToWhatsApp() {
     'Atacante': '⚡'
   };
 
-  currentSorteioState.teams.forEach(t => {
+  teams.forEach(t => {
     const mediaIdadeFmt = t.mediaIdade ? ` - Média: ${t.mediaIdade} anos` : '';
-    msg += `${t.icon} *${t.name.toUpperCase()}* (${t.jogadores.length} atletas${mediaIdadeFmt})\n`;
+    msg += `${t.icon || '⚽'} *${(t.name || '').toUpperCase()}* (${t.jogadores.length} atletas${mediaIdadeFmt})\n`;
     const titulares = t.jogadores.filter(p => !p.isSuplente);
     const suplentes = t.jogadores.filter(p => p.isSuplente);
 
@@ -37446,7 +37763,7 @@ function copyDrawnTeamsToWhatsApp() {
       const secTag = (p.usedSecondary || (p.pos2 && p.slotPosicao === p.pos2)) ? ' *(2ª Opção)*' : '';
       const playerAge = p.idade || getEffectivePlayerAge(p);
       const ageTag = playerAge ? ` (${playerAge}a)` : '';
-      msg += `${em} ${p.slotPosicao.padEnd(18, ' ')}: ${p.nome}${ageTag}${secTag}\n`;
+      msg += `${em} ${(p.slotPosicao || 'Atleta').padEnd(18, ' ')}: ${p.nome}${ageTag}${secTag}\n`;
     });
 
     if (suplentes.length > 0) {
@@ -37460,22 +37777,57 @@ function copyDrawnTeamsToWhatsApp() {
     msg += `\n`;
   });
 
-  if (currentSorteioState.reservas && currentSorteioState.reservas.length > 0) {
-    msg += `🔄 *RESERVAS FORA DOS TIMES:*\n`;
-    currentSorteioState.reservas.forEach(p => {
-      const playerAge = p.idade || getEffectivePlayerAge(p);
-      const ageTag = playerAge ? ` (${playerAge}a)` : '';
-      msg += `• ${p.nome}${ageTag} (${p.posicao || 'Reserva'})\n`;
+  // Collect and format goalkeepers and players present without a fixed team
+  const assignedIds = new Set();
+  teams.forEach(t => (t.jogadores || []).forEach(p => assignedIds.add(p.id)));
+
+  const unassignedPresent = (appData.players || []).filter(pl => {
+    const rData = pl.rodadas && pl.rodadas[currentRoundNum];
+    return rData && rData.p === 1 && !assignedIds.has(pl.id);
+  });
+
+  if (currentSorteioState && currentSorteioState.reservas && currentSorteioState.reservas.length > 0) {
+    currentSorteioState.reservas.forEach(r => {
+      if (!unassignedPresent.some(up => up.id === r.id)) {
+        unassignedPresent.push(r);
+      }
     });
-    msg += `\n`;
   }
 
-  if (currentSorteioState.teams.length === 4 && currentSorteioState.matchups) {
-    const mu = currentSorteioState.matchups;
-    const tA1 = currentSorteioState.teams[mu[0].timeAIndex] || { name: 'Time 1' };
-    const tB1 = currentSorteioState.teams[mu[0].timeBIndex] || { name: 'Time 2' };
-    const tA2 = currentSorteioState.teams[mu[1].timeAIndex] || { name: 'Time 3' };
-    const tB2 = currentSorteioState.teams[mu[1].timeBIndex] || { name: 'Time 4' };
+  if (unassignedPresent.length > 0) {
+    const goalkeepers = unassignedPresent.filter(p => (p.posicao || '').toLowerCase().includes('goleiro'));
+    const others = unassignedPresent.filter(p => !(p.posicao || '').toLowerCase().includes('goleiro'));
+
+    if (goalkeepers.length > 0) {
+      msg += `🧤 *GOLEIROS EM RODÍZIO (SEM TIME FIXO):*\n`;
+      goalkeepers.forEach(p => {
+        const playerAge = p.idade || getEffectivePlayerAge(p);
+        const ageTag = playerAge ? ` (${playerAge}a)` : '';
+        msg += `   • ${p.nome}${ageTag}\n`;
+      });
+      msg += `\n`;
+    }
+    if (others.length > 0) {
+      msg += `🔄 *ATLETAS PRESENTES / RODÍZIO (SEM TIME FIXO):*\n`;
+      others.forEach(p => {
+        const playerAge = p.idade || getEffectivePlayerAge(p);
+        const ageTag = playerAge ? ` (${playerAge}a)` : '';
+        msg += `   • ${p.nome}${ageTag} (${p.posicao || 'Atleta'})\n`;
+      });
+      msg += `\n`;
+    }
+  }
+
+  const matchups = (currentSorteioState && currentSorteioState.matchups) || [
+    { matchId: 1, timeAIndex: 0, timeBIndex: 1 },
+    { matchId: 2, timeAIndex: 2, timeBIndex: 3 }
+  ];
+
+  if (teams.length === 4 && matchups.length >= 2) {
+    const tA1 = teams[matchups[0].timeAIndex] || { name: 'Time 1' };
+    const tB1 = teams[matchups[0].timeBIndex] || { name: 'Time 2' };
+    const tA2 = teams[matchups[1].timeAIndex] || { name: 'Time 3' };
+    const tB2 = teams[matchups[1].timeBIndex] || { name: 'Time 4' };
 
     msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `🏟️ *CONFRONTOS DO SÁBADO (30 min cada):*\n`;
@@ -37497,6 +37849,491 @@ function copyDrawnTeamsToWhatsApp() {
   } else {
     prompt('Copie a mensagem abaixo para o WhatsApp:', msg);
   }
+}
+
+// ==========================================================================
+// FUNÇÕES: MOVER JOGADOR DE TIME & GESTÃO DE ATLETAS SEM TIME FIXO
+// ==========================================================================
+
+function openMovePlayerModal(fromTeamIndex, playerIndex) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada. Clique em "🔓 Abrir Rodada para Edição" para alterar.', 'warning');
+    return;
+  }
+  const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
+  if (!rnd || !rnd.times || !rnd.times[fromTeamIndex]) return;
+
+  const player = rnd.times[fromTeamIndex].jogadores[playerIndex];
+  if (!player) return;
+
+  const fromTeam = rnd.times[fromTeamIndex];
+  const subtitle = document.getElementById('move-player-modal-subtitle');
+  if (subtitle) {
+    subtitle.textContent = `Atleta: ${player.nome} • Time Atual: ${fromTeam.name}`;
+  }
+
+  const body = document.getElementById('move-player-modal-body');
+  if (!body) return;
+
+  const pl = appData.players.find(x => x.id === player.id) || player;
+
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#f8fafc;border-radius:var(--radius-md);border:1px solid #e2e8f0;">
+        ${renderPlayerAvatarHtml(pl, 'player-avatar-md')}
+        <div>
+          <div style="font-weight:800;font-size:1rem;color:var(--primary-navy);">${escapeHtml(player.nome)}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(player.posicao || 'Atleta')} • Time Atual: <strong>${escapeHtml(fromTeam.name)}</strong> (${fromTeam.jogadores.length} atletas)</div>
+        </div>
+      </div>
+
+      <div style="font-weight:700;font-size:0.85rem;color:var(--primary-dark);">
+        Selecione o destino para transferir este atleta:
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:0.6rem;">
+        ${rnd.times.map((t, idx) => {
+          if (idx === fromTeamIndex) return '';
+          return `
+            <div onclick="executeMovePlayerToRoundTeam(${fromTeamIndex}, ${playerIndex}, ${idx})" 
+              style="cursor:pointer;padding:0.75rem 1rem;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;transition:all 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.03);"
+              onmouseover="this.style.borderColor='var(--primary)';this.style.background='#eff6ff';"
+              onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#ffffff';">
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <span style="font-size:1.3rem;">${t.icon || '⚽'}</span>
+                <div>
+                  <strong style="color:var(--text-main);font-size:0.92rem;">${escapeHtml(t.name)}</strong>
+                  <div style="font-size:0.75rem;color:var(--text-muted);">${t.jogadores.length} atletas atuais</div>
+                </div>
+              </div>
+              <span class="btn btn-primary btn-sm" style="font-size:0.75rem;pointer-events:none;">
+                Transferir para cá ➔
+              </span>
+            </div>
+          `;
+        }).join('')}
+
+        <!-- Opção: Sem Time Fixo (Rodízio) -->
+        <div onclick="executeMovePlayerToUnassigned(${fromTeamIndex}, ${playerIndex})"
+          style="cursor:pointer;padding:0.75rem 1rem;background:#fefce8;border:1.5px solid #fde047;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;transition:all 0.15s;"
+          onmouseover="this.style.borderColor='#ca8a04';this.style.background='#fef9c3';"
+          onmouseout="this.style.borderColor='#fde047';this.style.background='#fefce8';">
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:1.3rem;">🧤</span>
+            <div>
+              <strong style="color:#854d0e;font-size:0.92rem;">Sem Time Fixo (Goleiro / Rodízio / Apoio)</strong>
+              <div style="font-size:0.75rem;color:#a16207;">Mantém a presença no sábado sem prender o jogador a um time específico</div>
+            </div>
+          </div>
+          <span class="btn btn-warning btn-sm" style="font-size:0.75rem;pointer-events:none;">
+            Tornar Avulso ➔
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  openModal('modal-move-player');
+}
+
+function executeMovePlayerToRoundTeam(fromTeamIndex, playerIndex, targetTeamIndex) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada.', 'warning');
+    return;
+  }
+  const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
+  if (!rnd || !rnd.times || !rnd.times[fromTeamIndex] || !rnd.times[targetTeamIndex]) return;
+
+  const [movedPlayer] = rnd.times[fromTeamIndex].jogadores.splice(playerIndex, 1);
+  if (!movedPlayer) return;
+
+  const targetTeam = rnd.times[targetTeamIndex];
+  movedPlayer.isSuplente = targetTeam.jogadores.length >= 8;
+  targetTeam.jogadores.push(movedPlayer);
+
+  // Recalculate stars and averages for both teams
+  [fromTeamIndex, targetTeamIndex].forEach(idx => {
+    const t = rnd.times[idx];
+    t.totalEstrelas = t.jogadores.reduce((sum, p) => sum + parseQualityNumber(p.qualidade), 0);
+    t.mediaEstrelas = t.jogadores.length > 0 ? (t.totalEstrelas / t.jogadores.length).toFixed(1) : '0.0';
+  });
+
+  // Ensure presence is marked
+  updatePlayerRoundStat(movedPlayer.id, 'p', 1);
+
+  saveAppState(false);
+  closeModal('modal-move-player');
+  renderRodadaManager();
+  showToast(`Atleta "${movedPlayer.nome}" movido para o ${targetTeam.name}!`, 'success');
+}
+
+function executeMovePlayerToUnassigned(fromTeamIndex, playerIndex) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada.', 'warning');
+    return;
+  }
+  const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
+  if (!rnd || !rnd.times || !rnd.times[fromTeamIndex]) return;
+
+  const [movedPlayer] = rnd.times[fromTeamIndex].jogadores.splice(playerIndex, 1);
+  if (!movedPlayer) return;
+
+  const fromTeam = rnd.times[fromTeamIndex];
+  fromTeam.totalEstrelas = fromTeam.jogadores.reduce((sum, p) => sum + parseQualityNumber(p.qualidade), 0);
+  fromTeam.mediaEstrelas = fromTeam.jogadores.length > 0 ? (fromTeam.totalEstrelas / fromTeam.jogadores.length).toFixed(1) : '0.0';
+
+  // Ensure presence is kept as 1
+  updatePlayerRoundStat(movedPlayer.id, 'p', 1);
+
+  saveAppState(false);
+  closeModal('modal-move-player');
+  renderRodadaManager();
+  showToast(`Atleta "${movedPlayer.nome}" mantido como presente sem time fixo (rodízio)!`, 'info');
+}
+
+function openAssignUnassignedToTeamModal(playerId) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada.', 'warning');
+    return;
+  }
+  const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
+  if (!rnd || !rnd.times || rnd.times.length === 0) {
+    showToast('Nenhum time disponível nesta rodada.', 'warning');
+    return;
+  }
+
+  const pl = appData.players.find(x => x.id === playerId);
+  if (!pl) return;
+
+  const subtitle = document.getElementById('move-player-modal-subtitle');
+  if (subtitle) {
+    subtitle.textContent = `Escalar Atleta: ${pl.nome} em uma equipe`;
+  }
+
+  const body = document.getElementById('move-player-modal-body');
+  if (!body) return;
+
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#f8fafc;border-radius:var(--radius-md);border:1px solid #e2e8f0;">
+        ${renderPlayerAvatarHtml(pl, 'player-avatar-md')}
+        <div>
+          <div style="font-weight:800;font-size:1rem;color:var(--primary-navy);">${escapeHtml(pl.nome)}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(pl.posicao || 'Atleta')} • Atualmente presente sem time fixo</div>
+        </div>
+      </div>
+
+      <div style="font-weight:700;font-size:0.85rem;color:var(--primary-dark);">
+        Escolha em qual equipe deseja escalar ${escapeHtml(pl.nome)}:
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:0.6rem;">
+        ${rnd.times.map((t, idx) => `
+          <div onclick="executeAssignUnassignedToRoundTeam(${pl.id}, ${idx})" 
+            style="cursor:pointer;padding:0.75rem 1rem;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;transition:all 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.03);"
+            onmouseover="this.style.borderColor='var(--primary)';this.style.background='#eff6ff';"
+            onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#ffffff';">
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <span style="font-size:1.3rem;">${t.icon || '⚽'}</span>
+              <div>
+                <strong style="color:var(--text-main);font-size:0.92rem;">${escapeHtml(t.name)}</strong>
+                <div style="font-size:0.75rem;color:var(--text-muted);">${t.jogadores.length} atletas atuais</div>
+              </div>
+            </div>
+            <span class="btn btn-primary btn-sm" style="font-size:0.75rem;pointer-events:none;">
+              Escalar neste time ➔
+            </span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  openModal('modal-move-player');
+}
+
+function executeAssignUnassignedToRoundTeam(playerId, targetTeamIndex) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada.', 'warning');
+    return;
+  }
+  const rnd = appData.rounds?.find(r => r.numero === currentRoundNum);
+  if (!rnd || !rnd.times || !rnd.times[targetTeamIndex]) return;
+
+  const pl = appData.players.find(x => x.id === playerId);
+  if (!pl) return;
+
+  const targetTeam = rnd.times[targetTeamIndex];
+  targetTeam.jogadores.push({
+    id: pl.id,
+    nome: pl.nome,
+    qualidade: parseQualityNumber(pl.qualidade),
+    posicao: pl.posicao,
+    slotPosicao: pl.posicao?.split('/')[0]?.trim() || 'Suplente',
+    isSuplente: targetTeam.jogadores.length >= 8,
+    usedSecondary: false
+  });
+
+  targetTeam.totalEstrelas = targetTeam.jogadores.reduce((sum, p) => sum + parseQualityNumber(p.qualidade), 0);
+  targetTeam.mediaEstrelas = (targetTeam.totalEstrelas / targetTeam.jogadores.length).toFixed(1);
+
+  updatePlayerRoundStat(pl.id, 'p', 1);
+
+  saveAppState(false);
+  closeModal('modal-move-player');
+  renderRodadaManager();
+  showToast(`${pl.nome} escalado no ${targetTeam.name}!`, 'success');
+}
+
+function removeUnassignedPresence(playerId) {
+  if (isRoundClosed(currentRoundNum)) {
+    showToast('Esta rodada está fechada.', 'warning');
+    return;
+  }
+  const pl = appData.players.find(x => x.id === playerId);
+  if (!pl) return;
+
+  if (!confirm(`Deseja desmarcar a presença de "${pl.nome}" na ${currentRoundNum}ª Rodada?`)) {
+    return;
+  }
+
+  updatePlayerRoundStat(playerId, 'p', 0);
+  if (pl.rodadas && pl.rodadas[currentRoundNum]) {
+    pl.rodadas[currentRoundNum].g = 0;
+    pl.rodadas[currentRoundNum].c = 0;
+    pl.rodadas[currentRoundNum].l = 0;
+    pl.rodadas[currentRoundNum].ca = 0;
+    pl.rodadas[currentRoundNum].cv = 0;
+  }
+
+  recalculateAllStats();
+  updateRoundTotalizers();
+  saveAppState(true);
+  renderRodadaManager();
+  showToast(`Presença de "${pl.nome}" desmarcada na rodada.`, 'info');
+}
+
+function openAddUnassignedPresentPlayerModal(roundNum) {
+  if (isRoundClosed(roundNum)) {
+    showToast('Esta rodada está fechada.', 'warning');
+    return;
+  }
+  const body = document.getElementById('add-unassigned-modal-body');
+  if (!body) return;
+
+  const rnd = appData.rounds?.find(r => r.numero === roundNum);
+  const assignedIds = new Set();
+  if (rnd && rnd.times) {
+    rnd.times.forEach(tm => (tm.jogadores || []).forEach(pj => assignedIds.add(pj.id)));
+  }
+
+  // Filter players not already assigned or present
+  const notPresentPlayers = (appData.players || []).filter(p => {
+    const rData = p.rodadas && p.rodadas[roundNum];
+    const isPresent = rData && rData.p === 1;
+    return !isPresent && !assignedIds.has(p.id);
+  });
+
+  notPresentPlayers.sort((a, b) => {
+    const aGol = (a.posicao || '').toLowerCase().includes('goleiro') ? 0 : 1;
+    const bGol = (b.posicao || '').toLowerCase().includes('goleiro') ? 0 : 1;
+    if (aGol !== bGol) return aGol - bGol;
+    return (a.nome || '').localeCompare(b.nome || '');
+  });
+
+  const renderList = (filterText = '', filterOnlyGol = false) => {
+    const fText = filterText.toLowerCase().trim();
+    const filtered = notPresentPlayers.filter(p => {
+      const isGoleiro = (p.posicao || '').toLowerCase().includes('goleiro');
+      if (filterOnlyGol && !isGoleiro) return false;
+      if (fText) {
+        return (p.nome || '').toLowerCase().includes(fText) || (p.posicao || '').toLowerCase().includes(fText);
+      }
+      return true;
+    });
+
+    const listContainer = document.getElementById('unassigned-picker-list');
+    if (!listContainer) return;
+
+    if (filtered.length === 0) {
+      listContainer.innerHTML = `<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:0.85rem;">Nenhum atleta encontrado para adicionar.</div>`;
+      return;
+    }
+
+    listContainer.innerHTML = filtered.map(p => {
+      const isGoleiro = (p.posicao || '').toLowerCase().includes('goleiro');
+      return `
+        <div onclick="executeAddUnassignedPresentPlayer(${roundNum}, ${p.id})"
+          style="cursor:pointer;padding:0.5rem 0.75rem;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;transition:all 0.15s;"
+          onmouseover="this.style.borderColor='var(--primary)';this.style.background='#f0fdf4';"
+          onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#ffffff';">
+          <div style="display:flex;align-items:center;gap:0.4rem;overflow:hidden;">
+            ${renderPlayerAvatarHtml(p, 'player-avatar-xs')}
+            <span style="font-size:0.7rem;padding:1px 5px;border-radius:4px;background:${isGoleiro ? '#fef3c7' : '#e2e8f0'};color:${isGoleiro ? '#92400e' : '#334155'};font-weight:700;">
+              ${isGoleiro ? '🧤 GOL' : escapeHtml(p.posicao || 'JOG')}
+            </span>
+            <strong style="color:var(--text-main);font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${escapeHtml(p.nome)}
+            </strong>
+          </div>
+          <button class="btn btn-primary btn-sm" style="font-size:0.72rem;padding:2px 8px;pointer-events:none;">
+            + Marcar Presente
+          </button>
+        </div>
+      `;
+    }).join('');
+  };
+
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:0.75rem;">
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <input type="text" id="search-unassigned-input" placeholder="Buscar por nome ou posição..." style="flex:1;padding:0.45rem 0.75rem;font-size:0.85rem;border:1px solid #cbd5e1;border-radius:6px;" oninput="window._filterUnassignedList()">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-filter-only-gol" onclick="window._toggleGolOnly()" style="font-weight:700;font-size:0.78rem;">
+          🧤 Apenas Goleiros
+        </button>
+      </div>
+      <div id="unassigned-picker-list" style="display:flex;flex-direction:column;gap:0.4rem;max-height:360px;overflow-y:auto;padding-right:2px;">
+      </div>
+    </div>
+  `;
+
+  let onlyGol = false;
+  window._toggleGolOnly = () => {
+    onlyGol = !onlyGol;
+    const btn = document.getElementById('btn-filter-only-gol');
+    if (btn) {
+      btn.classList.toggle('btn-primary', onlyGol);
+      btn.classList.toggle('btn-secondary', !onlyGol);
+    }
+    const val = document.getElementById('search-unassigned-input')?.value || '';
+    renderList(val, onlyGol);
+  };
+  window._filterUnassignedList = () => {
+    const val = document.getElementById('search-unassigned-input')?.value || '';
+    renderList(val, onlyGol);
+  };
+
+  renderList('', false);
+  openModal('modal-add-unassigned');
+}
+
+function executeAddUnassignedPresentPlayer(roundNum, playerId) {
+  if (isRoundClosed(roundNum)) {
+    showToast('Esta rodada está fechada.', 'warning');
+    return;
+  }
+  const pl = appData.players.find(x => x.id === playerId);
+  if (!pl) return;
+
+  updatePlayerRoundStat(playerId, 'p', 1);
+  updateRoundTotalizers();
+  saveAppState(false);
+  closeModal('modal-add-unassigned');
+  renderRodadaManager();
+  showToast(`${pl.nome} marcado como presente sem time fixo (rodízio)!`, 'success');
+}
+
+// Mover Jogador no Sorteador (antes de salvar na rodada)
+function openMovePlayerInSorteadorModal(fromTeamIndex, playerIndex) {
+  if (!currentSorteioState || !currentSorteioState.teams || !currentSorteioState.teams[fromTeamIndex]) return;
+
+  const player = currentSorteioState.teams[fromTeamIndex].jogadores[playerIndex];
+  if (!player) return;
+
+  const fromTeam = currentSorteioState.teams[fromTeamIndex];
+  const subtitle = document.getElementById('move-player-modal-subtitle');
+  if (subtitle) {
+    subtitle.textContent = `Sorteador: Mover ${player.nome} (${fromTeam.name})`;
+  }
+
+  const body = document.getElementById('move-player-modal-body');
+  if (!body) return;
+
+  const pl = appData.players.find(x => x.id === player.id) || player;
+
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#f8fafc;border-radius:var(--radius-md);border:1px solid #e2e8f0;">
+        ${renderPlayerAvatarHtml(pl, 'player-avatar-md')}
+        <div>
+          <div style="font-weight:800;font-size:1rem;color:var(--primary-navy);">${escapeHtml(player.nome)}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(player.posicao || 'Atleta')} • Time Atual: <strong>${escapeHtml(fromTeam.name)}</strong> (${fromTeam.jogadores.length} atletas)</div>
+        </div>
+      </div>
+
+      <div style="font-weight:700;font-size:0.85rem;color:var(--primary-dark);">
+        Selecione o destino para este jogador no sorteador:
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:0.6rem;">
+        ${currentSorteioState.teams.map((t, idx) => {
+          if (idx === fromTeamIndex) return '';
+          return `
+            <div onclick="executeMovePlayerInSorteador(${fromTeamIndex}, ${playerIndex}, ${idx})" 
+              style="cursor:pointer;padding:0.75rem 1rem;background:#ffffff;border:1.5px solid #cbd5e1;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;transition:all 0.15s;"
+              onmouseover="this.style.borderColor='var(--primary)';this.style.background='#eff6ff';"
+              onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#ffffff';">
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <span style="font-size:1.3rem;">${t.icon || '⚽'}</span>
+                <div>
+                  <strong style="color:var(--text-main);font-size:0.92rem;">${escapeHtml(t.name)}</strong>
+                  <div style="font-size:0.75rem;color:var(--text-muted);">${t.jogadores.length} atletas atuais</div>
+                </div>
+              </div>
+              <span class="btn btn-primary btn-sm" style="font-size:0.75rem;pointer-events:none;">
+                Transferir para cá ➔
+              </span>
+            </div>
+          `;
+        }).join('')}
+
+        <!-- Opção: Reservas / Sem Time Fixo -->
+        <div onclick="executeMovePlayerInSorteador(${fromTeamIndex}, ${playerIndex}, -1)"
+          style="cursor:pointer;padding:0.75rem 1rem;background:#fefce8;border:1.5px solid #fde047;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;transition:all 0.15s;"
+          onmouseover="this.style.borderColor='#ca8a04';this.style.background='#fef9c3';"
+          onmouseout="this.style.borderColor='#fde047';this.style.background='#fefce8';">
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="font-size:1.3rem;">🧤</span>
+            <div>
+              <strong style="color:#854d0e;font-size:0.92rem;">Reservas / Presente Sem Time Fixo</strong>
+              <div style="font-size:0.75rem;color:#a16207;">Retira do time e coloca na lista de reservas/rodízio do sábado</div>
+            </div>
+          </div>
+          <span class="btn btn-warning btn-sm" style="font-size:0.75rem;pointer-events:none;">
+            Mover p/ Reservas ➔
+          </span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  openModal('modal-move-player');
+}
+
+function executeMovePlayerInSorteador(fromTeamIndex, playerIndex, targetTeamIndex) {
+  if (!currentSorteioState || !currentSorteioState.teams || !currentSorteioState.teams[fromTeamIndex]) return;
+
+  const [movedPlayer] = currentSorteioState.teams[fromTeamIndex].jogadores.splice(playerIndex, 1);
+  if (!movedPlayer) return;
+
+  if (targetTeamIndex === -1) {
+    if (!currentSorteioState.reservas) currentSorteioState.reservas = [];
+    currentSorteioState.reservas.push(movedPlayer);
+    showToast(`${movedPlayer.nome} movido para a lista de Reservas / Sem Time Fixo!`, 'info');
+  } else {
+    const targetTeam = currentSorteioState.teams[targetTeamIndex];
+    movedPlayer.isSuplente = targetTeam.jogadores.length >= 8;
+    targetTeam.jogadores.push(movedPlayer);
+    showToast(`${movedPlayer.nome} movido para o ${targetTeam.name}!`, 'success');
+  }
+
+  currentSorteioState.teams.forEach(t => {
+    t.totalEstrelas = t.jogadores.reduce((sum, p) => sum + parseQualityNumber(p.qualidade), 0);
+    t.mediaEstrelas = t.jogadores.length > 0 ? (t.totalEstrelas / t.jogadores.length).toFixed(1) : '0.0';
+  });
+
+  closeModal('modal-move-player');
+  renderDrawnTeams();
 }
 
 function applyDrawnTeamsToRound() {
@@ -37594,6 +38431,21 @@ function applyDrawnTeamsToRound() {
       }
     });
   });
+
+  // Auto-mark presence for reservas / athletes present without fixed team
+  if (currentSorteioState.reservas && Array.isArray(currentSorteioState.reservas)) {
+    currentSorteioState.reservas.forEach(p => {
+      const pl = appData.players.find(x => x.id === p.id);
+      if (pl) {
+        if (!pl.rodadas) pl.rodadas = {};
+        if (!pl.rodadas[currentRoundNum]) {
+          pl.rodadas[currentRoundNum] = { p: 1, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
+        } else {
+          pl.rodadas[currentRoundNum].p = 1;
+        }
+      }
+    });
+  }
 
   saveAppState(true);
   closeModal('modal-sorteador-times');
@@ -37928,6 +38780,7 @@ function openMatchScoresheetModal(roundNum, matchId) {
       const matchStat = (match.stats && match.stats[pl.id]) ? match.stats[pl.id] : null;
       statsDraft[pl.id] = {
         g: matchStat ? Number(matchStat.g || 0) : 0,
+        gc: matchStat ? Number(matchStat.gc || 0) : 0,
         ca: matchStat ? Number(matchStat.ca || 0) : 0,
         cv: matchStat ? Number(matchStat.cv || 0) : 0
       };
@@ -37956,17 +38809,24 @@ function renderScoresheetContent() {
   const teamA = round.times[activeScoresheetMatch.timeAIndex] || { name: 'Time Mandante', color: '#1d4ed8', icon: '🔵', jogadores: [] };
   const teamB = round.times[activeScoresheetMatch.timeBIndex] || { name: 'Time Visitante', color: '#475569', icon: '⚪', jogadores: [] };
 
-  // Calculate live scores from player stats draft
+  // Calculate live scores from player stats draft including Own Goals (GC)
   let totalGolsA = 0;
+  let totalGolsB = 0;
+
   (teamA.jogadores || []).forEach(item => {
     const st = activeScoresheetMatch.statsDraft[item.id];
-    if (st) totalGolsA += Number(st.g || 0);
+    if (st) {
+      totalGolsA += Number(st.g || 0); // Regular goals for Team A
+      totalGolsB += Number(st.gc || 0); // Own goal by Team A benefits Team B!
+    }
   });
 
-  let totalGolsB = 0;
   (teamB.jogadores || []).forEach(item => {
     const st = activeScoresheetMatch.statsDraft[item.id];
-    if (st) totalGolsB += Number(st.g || 0);
+    if (st) {
+      totalGolsB += Number(st.g || 0); // Regular goals for Team B
+      totalGolsA += Number(st.gc || 0); // Own goal by Team B benefits Team A!
+    }
   });
 
   // Header Titles
@@ -38004,7 +38864,7 @@ function renderScoresheetContent() {
 
       const playersHtml = (team.jogadores || []).map(item => {
         const pl = appData.players.find(p => p.id === item.id) || { id: item.id, nome: item.nome || 'Atleta', foto: null, posicao: item.posicao || '' };
-        const st = activeScoresheetMatch.statsDraft[pl.id] || { g: 0, ca: 0, cv: 0 };
+        const st = activeScoresheetMatch.statsDraft[pl.id] || { g: 0, gc: 0, ca: 0, cv: 0 };
         const avatarSrc = pl.foto || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%2394a3b8"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
         return `
@@ -38023,6 +38883,13 @@ function renderScoresheetContent() {
                 <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'g', -1)">-</button>
                 <span class="pill-val">⚽ ${st.g}</span>
                 <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'g', 1)">+</button>
+              </div>
+
+              <!-- Gol Contra Counter -->
+              <div class="scoresheet-pill pill-gc" title="Gol Contra cometido por ${escapeHtml(pl.nome)} (ponto concedido ao time adversário)">
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'gc', -1)">-</button>
+                <span class="pill-val">⚡ ${st.gc || 0} GC</span>
+                <button type="button" onclick="adjustScoresheetPlayerStat(${pl.id}, 'gc', 1)">+</button>
               </div>
 
               <!-- Yellow Card Counter -->
@@ -38095,7 +38962,7 @@ function renderScoresheetContent() {
 function adjustScoresheetPlayerStat(playerId, field, delta) {
   if (!activeScoresheetMatch || !activeScoresheetMatch.statsDraft) return;
   if (!activeScoresheetMatch.statsDraft[playerId]) {
-    activeScoresheetMatch.statsDraft[playerId] = { g: 0, ca: 0, cv: 0 };
+    activeScoresheetMatch.statsDraft[playerId] = { g: 0, gc: 0, ca: 0, cv: 0 };
   }
   const current = Number(activeScoresheetMatch.statsDraft[playerId][field] || 0);
   activeScoresheetMatch.statsDraft[playerId][field] = Math.max(0, current + delta);
@@ -38130,17 +38997,24 @@ function saveAndFinalizeMatchScoresheet() {
 
   if (!teamA || !teamB) return;
 
-  // 1. Calculate final goals for each team
+  // 1. Calculate final goals for each team including Own Goals (GC)
   let totalGolsA = 0;
+  let totalGolsB = 0;
+
   (teamA.jogadores || []).forEach(item => {
     const st = activeScoresheetMatch.statsDraft[item.id];
-    if (st) totalGolsA += Number(st.g || 0);
+    if (st) {
+      totalGolsA += Number(st.g || 0);
+      totalGolsB += Number(st.gc || 0); // Own goal by Team A benefits Team B
+    }
   });
 
-  let totalGolsB = 0;
   (teamB.jogadores || []).forEach(item => {
     const st = activeScoresheetMatch.statsDraft[item.id];
-    if (st) totalGolsB += Number(st.g || 0);
+    if (st) {
+      totalGolsB += Number(st.g || 0);
+      totalGolsA += Number(st.gc || 0); // Own goal by Team B benefits Team A
+    }
   });
 
   // Prompt if tied in Semifinal without penalty decision
@@ -38157,16 +39031,17 @@ function saveAndFinalizeMatchScoresheet() {
   match.played = true;
   match.penaltyWinner = (totalGolsA === totalGolsB) ? activeScoresheetMatch.penaltyWinner : null;
 
-  // 3. Aggregate all goals, CA and CV across all played matches in this round
+  // 3. Aggregate all goals, GC, CA and CV across all played matches in this round
   const roundPlayerAggregates = {};
   (round.jogos || []).forEach(m => {
     if (m.stats) {
       Object.entries(m.stats).forEach(([pId, st]) => {
         const numId = Number(pId);
         if (!roundPlayerAggregates[numId]) {
-          roundPlayerAggregates[numId] = { g: 0, ca: 0, cv: 0 };
+          roundPlayerAggregates[numId] = { g: 0, gc: 0, ca: 0, cv: 0 };
         }
         roundPlayerAggregates[numId].g += Number(st.g || 0);
+        roundPlayerAggregates[numId].gc += Number(st.gc || 0);
         roundPlayerAggregates[numId].ca += Number(st.ca || 0);
         roundPlayerAggregates[numId].cv += Number(st.cv || 0);
       });
@@ -38178,10 +39053,15 @@ function saveAndFinalizeMatchScoresheet() {
     if (roundPlayerAggregates[pl.id]) {
       if (!pl.rodadas) pl.rodadas = {};
       if (!pl.rodadas[roundNum]) {
-        pl.rodadas[roundNum] = { p: 1, g: 0, c: 0, l: 0, ca: 0, cv: 0 };
+        pl.rodadas[roundNum] = { p: 1, g: 0, gc: 0, c: 0, l: 0, ca: 0, cv: 0 };
       }
       pl.rodadas[roundNum].p = 1;
       pl.rodadas[roundNum].g = roundPlayerAggregates[pl.id].g;
+      pl.rodadas[roundNum].gc = roundPlayerAggregates[pl.id].gc;
+      pl.rodadas[roundNum].ca = roundPlayerAggregates[pl.id].ca;
+      pl.rodadas[roundNum].cv = roundPlayerAggregates[pl.id].cv;
+    }
+  });
       pl.rodadas[roundNum].ca = roundPlayerAggregates[pl.id].ca;
       pl.rodadas[roundNum].cv = roundPlayerAggregates[pl.id].cv;
     }
@@ -38312,6 +39192,7 @@ function renderRoundMatchesBoard(round) {
                 const st = m.stats[item.id];
                 if (st && pl) {
                   if (st.g > 0) scorersA.push(`${pl.nome} (${st.g})`);
+                  if (st.gc > 0) scorersB.push(`${pl.nome} (GC${st.gc > 1 ? ` ${st.gc}` : ''})`);
                   if (st.ca > 0) cardsA.push(`🟨 ${pl.nome}`);
                   if (st.cv > 0) cardsA.push(`🟥 ${pl.nome}`);
                 }
@@ -38322,6 +39203,7 @@ function renderRoundMatchesBoard(round) {
                 const st = m.stats[item.id];
                 if (st && pl) {
                   if (st.g > 0) scorersB.push(`${pl.nome} (${st.g})`);
+                  if (st.gc > 0) scorersA.push(`${pl.nome} (GC${st.gc > 1 ? ` ${st.gc}` : ''})`);
                   if (st.ca > 0) cardsB.push(`🟨 ${pl.nome}`);
                   if (st.cv > 0) cardsB.push(`🟥 ${pl.nome}`);
                 }
@@ -38905,9 +39787,12 @@ function copyRoundMatchesToWhatsApp(roundNum) {
       if (m.stats) {
         const matchScorers = [];
         Object.entries(m.stats).forEach(([pId, st]) => {
-          if (st.g > 0) {
-            const pl = appData.players.find(p => p.id === Number(pId));
-            if (pl) matchScorers.push(`${pl.nome} (${st.g})`);
+          const pl = appData.players.find(p => p.id === Number(pId));
+          if (st.g > 0 && pl) {
+            matchScorers.push(`${pl.nome} (${st.g})`);
+          }
+          if (st.gc > 0 && pl) {
+            matchScorers.push(`${pl.nome} (${st.gc > 1 ? `${st.gc}x ` : ''}Gol Contra)`);
           }
         });
         if (matchScorers.length > 0) {
