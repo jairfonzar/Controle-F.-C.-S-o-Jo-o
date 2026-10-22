@@ -2573,6 +2573,9 @@ body:not(.is-master) [data-master-only="true"] {
         <button class="nav-btn" data-tab="aniversariantes">
           🎉 Aniversariantes <span class="nav-badge" id="badge-aniversariantes-count" style="display:none;background:#2563eb;">0</span>
         </button>
+        <button class="nav-btn" data-tab="painel-diretoria" data-admin-only="true">
+          👔 Painel Diretoria
+        </button>
         <button class="nav-btn" data-tab="rodadas" data-admin-only="true">
           ⚽ Lançar Rodadas
         </button>
@@ -2722,6 +2725,12 @@ body:not(.is-master) [data-master-only="true"] {
           <tbody id="stats-table-body"></tbody>
         </table>
       </div>
+    </section>
+
+
+    <!-- ================= TAB: PAINEL DA DIRETORIA ================= -->
+    <section class="tab-pane" id="tab-painel-diretoria" data-admin-only="true">
+      <div id="painel-diretoria-content"></div>
     </section>
 
 
@@ -25542,7 +25551,7 @@ let isAdminSession = false;
 let isMasterAdmin = false;
 let adminAuthLevel = 'visitor'; // 'visitor', 'director', 'master'
 let pendingMasterAction = null;
-const ADMIN_RESTRICTED_TABS = ['rodadas', 'socios', 'pendencias', 'caixa', 'configuracoes'];
+const ADMIN_RESTRICTED_TABS = ['painel-diretoria', 'rodadas', 'socios', 'pendencias', 'caixa', 'configuracoes'];
 
 // Month names and abbreviations
 const MESES = [
@@ -26859,6 +26868,9 @@ function renderApp(preserveScroll = true) {
       case 'dashboard':
         renderDashboard();
         break;
+      case 'painel-diretoria':
+        renderPainelDiretoria();
+        break;
       case 'estatisticas':
         renderEstatisticasTable();
         break;
@@ -27646,32 +27658,6 @@ function renderDashboard() {
   const mediaGolsRodada = playedRoundsCount > 0 ? (totalGols / playedRoundsCount).toFixed(1) : 0;
   const mediaPresenca = playedRoundsCount > 0 ? Math.round(totalPresencas / playedRoundsCount) : 0;
 
-  // Cash flow balance
-  let totalEntradas = 0;
-  let totalSaidas = 0;
-  fluxo.forEach(t => {
-    if (t.tipo === 'entrada') totalEntradas += Number(t.valor);
-    if (t.tipo === 'saida') totalSaidas += Number(t.valor);
-  });
-  const saldoCaixa = totalEntradas - totalSaidas;
-
-  // Pending debts
-  let valorPendenteMensalidades = 0;
-  let valorPendenteCartoes = 0;
-  players.forEach(p => {
-    if (p.ativo && p.mensalidades) {
-      Object.values(p.mensalidades).forEach(m => {
-        if (m.status === 'pendente') {
-          valorPendenteMensalidades += (m.valor || appData.configuracoes.valorMensalidade);
-        }
-      });
-    }
-    if (p.debitoCartoes && p.debitoCartoes.status === 'pendente' && p.debitoCartoes.valorTotal > 0) {
-      valorPendenteCartoes += Number(p.debitoCartoes.valorTotal);
-    }
-  });
-  const valorPendenteTotal = valorPendenteMensalidades + valorPendenteCartoes;
-
   // Render KPIs
   const kpiContainer = document.getElementById('dashboard-kpis');
   if (kpiContainer) {
@@ -27691,46 +27677,24 @@ function renderDashboard() {
       }
     });
 
-    let extraKpisHtml = '';
-    if (isAdminSession) {
-      extraKpisHtml = `
-        <div class="kpi-card" data-admin-only="true">
-          <div class="kpi-icon purple">💰</div>
-          <div class="kpi-data">
-            <h3>Saldo em Caixa</h3>
-            <div class="kpi-value" style="color:${saldoCaixa >= 0 ? '#10b981' : '#ef4444'};">R$ ${saldoCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-            <div class="kpi-sub">Entradas: R$ ${totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} | Saídas: R$ ${totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</div>
-          </div>
+    const extraKpisHtml = `
+      <div class="kpi-card">
+        <div class="kpi-icon purple">🎂</div>
+        <div class="kpi-data">
+          <h3>Aniversariantes</h3>
+          <div class="kpi-value" style="color:#7e22ce;">${bdayThisMonthCount} <span style="font-size:0.85rem;color:var(--text-muted);font-weight:normal;">neste mês</span></div>
+          <div class="kpi-sub">${MESES[currentMonth - 1]?.nome || 'Mês'} 2026</div>
         </div>
-        <div class="kpi-card" data-admin-only="true">
-          <div class="kpi-icon red">⚠️</div>
-          <div class="kpi-data">
-            <h3>Pendências a Receber</h3>
-            <div class="kpi-value" style="color:#b91c1c;">R$ ${valorPendenteTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-            <div class="kpi-sub">Mensalidades: R$ ${valorPendenteMensalidades.toFixed(0)} | Cartões: R$ ${valorPendenteCartoes.toFixed(0)}</div>
-          </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon" style="background:#eff6ff;color:#1d4ed8;">🏆</div>
+        <div class="kpi-data">
+          <h3>Temporada Oficial</h3>
+          <div class="kpi-value" style="color:#1e40af;">2026</div>
+          <div class="kpi-sub">E.C. São João • Tietê/SP</div>
         </div>
-      `;
-    } else {
-      extraKpisHtml = `
-        <div class="kpi-card">
-          <div class="kpi-icon purple">🎂</div>
-          <div class="kpi-data">
-            <h3>Aniversariantes</h3>
-            <div class="kpi-value" style="color:#7e22ce;">${bdayThisMonthCount} <span style="font-size:0.85rem;color:var(--text-muted);font-weight:normal;">neste mês</span></div>
-            <div class="kpi-sub">${MESES[currentMonth - 1]?.nome || 'Mês'} 2026</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon" style="background:#eff6ff;color:#1d4ed8;">🏆</div>
-          <div class="kpi-data">
-            <h3>Temporada Oficial</h3>
-            <div class="kpi-value" style="color:#1e40af;">2026</div>
-            <div class="kpi-sub">E.C. São João • Tietê/SP</div>
-          </div>
-        </div>
-      `;
-    }
+      </div>
+    `;
 
     kpiContainer.innerHTML = `
       <div class="kpi-card">
@@ -32948,6 +32912,694 @@ function renderLauncherDespesasModalGrid() {
       </div>
     </div>
   `).join('');
+}
+
+// ==========================================================================
+// 8. PAINEL DE GESTÃO DA DIRETORIA (ÁREA EXECUTIVA E CONFIDENCIAL)
+// ==========================================================================
+function renderPainelDiretoria() {
+  const container = document.getElementById('painel-diretoria-content');
+  if (!container) return;
+
+  if (!isAdminSession) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:3rem 1.5rem;background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);margin-top:2rem;box-shadow:var(--shadow-sm);">
+        <div style="font-size:3.5rem;margin-bottom:1rem;">🔒</div>
+        <h3 style="font-size:1.4rem;font-weight:800;color:var(--text-main);margin-bottom:0.5rem;">Área Exclusiva da Diretoria</h3>
+        <p style="color:var(--text-muted);max-width:520px;margin:0 auto 1.5rem auto;font-size:0.92rem;line-height:1.5;">
+          Esta aba contém o balancete estratégico, livro caixa, indicadores confidenciais de arrecadação e painel de cobrança do clube. Faça login com a senha da diretoria para acessar.
+        </p>
+        <button class="btn btn-primary" onclick="openAdminLoginModal()" style="font-weight:800;padding:0.6rem 1.4rem;">
+          🔑 Fazer Login como Diretor
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const players = appData.players || [];
+  const rounds = appData.rounds || [];
+  const fluxo = appData.fluxoCaixa || [];
+  const cfg = appData.configuracoes || {};
+  const valorMensalidade = Number(cfg.valorMensalidade) || 50;
+
+  const now = new Date();
+  const currentMonthNum = now.getMonth() + 1; // 1 to 12
+  const currentYearNum = now.getFullYear();
+  const mesAtualNome = MESES[currentMonthNum - 1]?.nome || 'Mês Atual';
+  const currentMonthKey = MESES[currentMonthNum - 1]?.key || 'out';
+
+  // 1. Totalizadores de Caixa
+  let totalEntradas = 0;
+  let totalSaidas = 0;
+  let entradasMesAtual = 0;
+  let saidasMesAtual = 0;
+
+  // Breakdown de Despesas por Categoria
+  const catDespesas = {
+    campo: { label: 'Campo, Grama & Manutenção', icon: '🌱', total: 0, color: '#16a34a' },
+    arbitragem: { label: 'Arbitragem & Juízes', icon: '⚖️', total: 0, color: '#2563eb' },
+    churrasco: { label: 'Confraternização & Churrasco', icon: '🥩', total: 0, color: '#ea580c' },
+    materiais: { label: 'Bolas, Coletes & Materiais', icon: '⚽', total: 0, color: '#7c3aed' },
+    outros: { label: 'Outras Despesas / Diversos', icon: '📦', total: 0, color: '#64748b' }
+  };
+
+  // Comparativo Mensal Entradas vs Saídas (12 meses)
+  const monthlyFlow = MESES.map((m, idx) => ({
+    mesNum: idx + 1,
+    nome: m.nome,
+    abrev: m.abrev,
+    key: m.key,
+    entradas: 0,
+    saidas: 0,
+    saldo: 0
+  }));
+
+  fluxo.forEach(t => {
+    const val = Number(t.valor) || 0;
+    const cat = (t.categoria || '').toLowerCase();
+    const desc = (t.descricao || '').toLowerCase();
+    const isEntrada = t.tipo === 'entrada';
+
+    let tMonth = 0;
+    let tYear = 0;
+    if (t.data) {
+      const parts = String(t.data).trim().split('/');
+      if (parts.length === 3) {
+        tMonth = parseInt(parts[1], 10);
+        tYear = parseInt(parts[2], 10);
+      }
+    }
+
+    const isThisMonth = (tMonth === currentMonthNum && (tYear === currentYearNum || tYear === 2026));
+
+    if (tMonth >= 1 && tMonth <= 12) {
+      if (isEntrada) monthlyFlow[tMonth - 1].entradas += val;
+      else monthlyFlow[tMonth - 1].saidas += val;
+    }
+
+    if (isEntrada) {
+      totalEntradas += val;
+      if (isThisMonth) entradasMesAtual += val;
+    } else {
+      totalSaidas += val;
+      if (isThisMonth) saidasMesAtual += val;
+
+      // Classificar categoria de despesa
+      if (cat.includes('manuten') || cat.includes('campo') || cat.includes('roç') || cat.includes('gram') || cat.includes('gasolina') || cat.includes('cal') || desc.includes('campo') || desc.includes('roç')) {
+        catDespesas.campo.total += val;
+      } else if (cat.includes('arbitr') || cat.includes('juiz') || cat.includes('árbitro') || desc.includes('juiz') || desc.includes('arbitr')) {
+        catDespesas.arbitragem.total += val;
+      } else if (cat.includes('churras') || cat.includes('carne') || cat.includes('bebida') || cat.includes('gelo') || cat.includes('confrat') || desc.includes('churras') || desc.includes('bebida')) {
+        catDespesas.churrasco.total += val;
+      } else if (cat.includes('bola') || cat.includes('colete') || cat.includes('rede') || cat.includes('material') || cat.includes('trofeu') || cat.includes('troféu') || desc.includes('bola')) {
+        catDespesas.materiais.total += val;
+      } else {
+        catDespesas.outros.total += val;
+      }
+    }
+  });
+
+  monthlyFlow.forEach(m => {
+    m.saldo = m.entradas - m.saidas;
+  });
+
+  const saldoAtual = totalEntradas - totalSaidas;
+  const saldoMesAtual = entradasMesAtual - saidasMesAtual;
+
+  // 2. Análise de Mensalidades & Inadimplência
+  let totalMensalidadesRecebido = 0;
+  let totalMensalidadesPendente = 0;
+  let totalCartoesPendente = 0;
+  let totalAmarelosGerados = 0;
+  let totalVermelhosGerados = 0;
+  let devedoresList = [];
+
+  // Quadro de Sócios
+  let totalSociosAtivos = 0;
+  let goleirosIsentosCount = 0;
+  let sociosDMCount = 0;
+  let sociosAfastadosCount = 0;
+  let sociosPagantesAtivos = 0;
+
+  // Acompanhamento mês a mês das mensalidades (12 meses)
+  const monthlyDuesStats = MESES.map((m, idx) => ({
+    mesNum: idx + 1,
+    nome: m.nome,
+    abrev: m.abrev,
+    key: m.key,
+    pagos: 0,
+    pendentes: 0,
+    isentos: 0,
+    totalRecebido: 0
+  }));
+
+  players.forEach(p => {
+    const isAtivo = !!p.ativo;
+    const statusSocio = (p.statusSocio || '').toLowerCase();
+    const posicao = (p.posicao || '').toLowerCase();
+
+    if (isAtivo) {
+      totalSociosAtivos++;
+      if (posicao.includes('goleiro')) {
+        goleirosIsentosCount++;
+      } else if (statusSocio.includes('machucado') || statusSocio.includes('dm')) {
+        sociosDMCount++;
+      } else if (statusSocio.includes('licença') || statusSocio.includes('viagem') || statusSocio.includes('afastado')) {
+        sociosAfastadosCount++;
+      } else {
+        sociosPagantesAtivos++;
+      }
+    }
+
+    // Cartões
+    if (p.debitoCartoes) {
+      if (p.debitoCartoes.amarelos) totalAmarelosGerados += Number(p.debitoCartoes.amarelos);
+      if (p.debitoCartoes.vermelhos) totalVermelhosGerados += Number(p.debitoCartoes.vermelhos);
+      if (p.debitoCartoes.status === 'pendente' && p.debitoCartoes.valorTotal > 0) {
+        totalCartoesPendente += Number(p.debitoCartoes.valorTotal);
+      }
+    }
+
+    // Processar Mensalidades
+    let playerMonthlyDebt = 0;
+    let playerOpenMonths = [];
+    if (isAtivo && p.mensalidades) {
+      MESES.forEach((m, idx) => {
+        const item = p.mensalidades[m.key];
+        const st = item ? item.status : (idx + 1 <= currentMonthNum ? 'pendente' : 'a_vencer');
+        const val = (item && item.valor) ? Number(item.valor) : valorMensalidade;
+
+        if (st === 'pago') {
+          totalMensalidadesRecebido += val;
+          monthlyDuesStats[idx].pagos++;
+          monthlyDuesStats[idx].totalRecebido += val;
+        } else if (st === 'pendente') {
+          totalMensalidadesPendente += val;
+          playerMonthlyDebt += val;
+          playerOpenMonths.push(m.abrev);
+          monthlyDuesStats[idx].pendentes++;
+        } else if (st === 'isento') {
+          monthlyDuesStats[idx].isentos++;
+        }
+      });
+    }
+
+    const playerCardDebt = (p.debitoCartoes && p.debitoCartoes.status === 'pendente' && p.debitoCartoes.valorTotal > 0)
+      ? Number(p.debitoCartoes.valorTotal)
+      : 0;
+
+    const playerTotalDebt = playerMonthlyDebt + playerCardDebt;
+    if (playerTotalDebt > 0) {
+      devedoresList.push({
+        id: p.id,
+        player: p,
+        nome: getPlayerDisplayName(p),
+        telefone: p.telefone || '',
+        posicao: p.posicao || '',
+        mesesAbertos: playerOpenMonths,
+        monthlyDebt: playerMonthlyDebt,
+        cardDebt: playerCardDebt,
+        totalDebt: playerTotalDebt
+      });
+    }
+  });
+
+  devedoresList.sort((a, b) => b.totalDebt - a.totalDebt);
+
+  const totalPendenteGeral = totalMensalidadesPendente + totalCartoesPendente;
+  const taxaAdimplencia = (totalMensalidadesRecebido + totalMensalidadesPendente) > 0
+    ? ((totalMensalidadesRecebido / (totalMensalidadesRecebido + totalMensalidadesPendente)) * 100).toFixed(1)
+    : 100;
+
+  const potencialMensal = sociosPagantesAtivos * valorMensalidade;
+
+  // 3. Métricas de Jogos & Operação
+  let playedRoundsCount = 0;
+  let totalPresencas = 0;
+  let totalGols = 0;
+  rounds.forEach(r => {
+    let rPres = 0;
+    let rGols = 0;
+    players.forEach(p => {
+      const pr = p.rodadas && p.rodadas[r.numero];
+      if (pr) {
+        if (pr.p) rPres += pr.p;
+        if (pr.g) rGols += pr.g;
+      }
+    });
+    if (rPres > 0) {
+      playedRoundsCount++;
+      totalPresencas += rPres;
+      totalGols += rGols;
+    }
+  });
+
+  const mediaPresenca = playedRoundsCount > 0 ? (totalPresencas / playedRoundsCount).toFixed(1) : 0;
+  const custoMedioRodada = playedRoundsCount > 0 ? (totalSaidas / playedRoundsCount) : 0;
+  const custoPorJogadorPorSabado = totalPresencas > 0 ? (totalSaidas / totalPresencas) : 0;
+
+  const totalMultasGeradas = (totalAmarelosGerados * 5) + (totalVermelhosGerados * 15);
+  const totalMultasQuitadas = Math.max(0, totalMultasGeradas - totalCartoesPendente);
+
+  const adimplenciaColor = Number(taxaAdimplencia) >= 85 ? '#10b981' : (Number(taxaAdimplencia) >= 70 ? '#f59e0b' : '#ef4444');
+
+  // Máximo mensal para cálculo de barras comparativas
+  let maxMonthlyValue = 1;
+  monthlyFlow.forEach(m => {
+    if (m.entradas > maxMonthlyValue) maxMonthlyValue = m.entradas;
+    if (m.saidas > maxMonthlyValue) maxMonthlyValue = m.saidas;
+  });
+
+  const dataAtualFormatada = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
+  container.innerHTML = `
+    <!-- HEADER EXECUTIVO DA DIRETORIA -->
+    <div style="background:linear-gradient(135deg, #0f2b5c 0%, #1e3a8a 100%);color:#ffffff;padding:1.5rem 1.75rem;border-radius:var(--radius-lg);margin-bottom:1.75rem;box-shadow:0 4px 20px rgba(15,43,92,0.3);border:1px solid #3b82f6;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1.25rem;">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.15);padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:0.5rem;">
+            <span>👔</span> ÁREA CONFIDENCIAL DA DIRETORIA • E.C. SÃO JOÃO
+          </div>
+          <h2 style="font-size:1.65rem;font-weight:900;color:#ffffff;margin:0 0 0.35rem 0;display:flex;align-items:center;gap:0.5rem;">
+            Painel Estratégico & Indicadores de Gestão 2026
+          </h2>
+          <p style="font-size:0.88rem;color:#bfdbfe;margin:0;">
+            Visão consolidada financeira, saúde do quadro de sócios, controle de adimplência e custos operacionais.
+          </p>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+          <button class="btn btn-sm" onclick="switchTab('caixa')" style="background:#ffffff;color:#0f2b5c;font-weight:800;border:none;box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+            💰 Livro Caixa
+          </button>
+          <button class="btn btn-sm" onclick="switchTab('pendencias')" style="background:#fef3c7;color:#92400e;font-weight:800;border:1px solid #fcd34d;">
+            ⚠️ Inadimplentes (${devedoresList.length})
+          </button>
+          <button class="btn btn-sm" onclick="switchTab('socios')" style="background:rgba(255,255,255,0.15);color:#ffffff;border:1px solid rgba(255,255,255,0.3);font-weight:700;">
+            👥 Sócios & Elenco
+          </button>
+          <button class="btn btn-sm" onclick="switchTab('rodadas')" style="background:rgba(255,255,255,0.15);color:#ffffff;border:1px solid rgba(255,255,255,0.3);font-weight:700;">
+            ⚽ Lançar Rodadas
+          </button>
+          <button class="btn btn-sm" onclick="exportBackupJSON()" style="background:#10b981;color:#ffffff;border:none;font-weight:800;">
+            📥 Backup JSON
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 CARDS KPIS PRINCIPAIS -->
+    <div class="kpi-grid" style="margin-bottom:1.75rem;">
+      <!-- Card 1: Saldo Líquido -->
+      <div class="kpi-card" style="border-top:4px solid ${saldoAtual >= 0 ? '#10b981' : '#ef4444'};">
+        <div class="kpi-icon ${saldoAtual >= 0 ? 'green' : 'red'}">💰</div>
+        <div class="kpi-data">
+          <h3>Saldo em Caixa</h3>
+          <div class="kpi-value" style="color:${saldoAtual >= 0 ? '#10b981' : '#ef4444'};">
+            R$ ${saldoAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div class="kpi-sub">
+            Entradas: R$ ${totalEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} | Saídas: R$ ${totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2: Arrecadação de Mensalidades -->
+      <div class="kpi-card" style="border-top:4px solid #10b981;">
+        <div class="kpi-icon green">📊</div>
+        <div class="kpi-data">
+          <h3>Mensalidades Arrecadadas</h3>
+          <div class="kpi-value" style="color:#15803d;">
+            R$ ${totalMensalidadesRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div class="kpi-sub" style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
+            <span>Taxa de Adimplência: <strong>${taxaAdimplencia}%</strong></span>
+          </div>
+          <div style="height:6px;width:100%;background:#e2e8f0;border-radius:3px;margin-top:5px;overflow:hidden;">
+            <div style="height:100%;width:${Math.min(100, Math.max(0, Number(taxaAdimplencia)))}%;background:${adimplenciaColor};border-radius:3px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Inadimplência Total -->
+      <div class="kpi-card" style="border-top:4px solid #ef4444;">
+        <div class="kpi-icon red">⚠️</div>
+        <div class="kpi-data">
+          <h3>Pendências a Receber</h3>
+          <div class="kpi-value" style="color:#b91c1c;">
+            R$ ${totalPendenteGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div class="kpi-sub">
+            ${devedoresList.length} sócio(s) • Mensais: R$ ${totalMensalidadesPendente.toFixed(0)} | Cartões: R$ ${totalCartoesPendente.toFixed(0)}
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Resultado Mês Vigente -->
+      <div class="kpi-card" style="border-top:4px solid #3b82f6;">
+        <div class="kpi-icon blue">📅</div>
+        <div class="kpi-data">
+          <h3>Mês Vigente (${mesAtualNome})</h3>
+          <div class="kpi-value" style="color:${saldoMesAtual >= 0 ? '#10b981' : '#ef4444'};">
+            ${saldoMesAtual >= 0 ? '+' : ''}R$ ${saldoMesAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div class="kpi-sub">
+            Entradas: R$ ${entradasMesAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} | Saídas: R$ ${saidasMesAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 5: Potencial Mensal -->
+      <div class="kpi-card" style="border-top:4px solid #7c3aed;">
+        <div class="kpi-icon purple">👥</div>
+        <div class="kpi-data">
+          <h3>Potencial Mensal Ativo</h3>
+          <div class="kpi-value" style="color:#6d28d9;">
+            R$ ${potencialMensal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;">/mês</span>
+          </div>
+          <div class="kpi-sub">
+            ${sociosPagantesAtivos} pagantes ativos (exclui ${goleirosIsentosCount} goleiros e ${sociosDMCount} no DM)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO DUPLA: ESTRUTURA DE DESPESAS + COMPARATIVO MENSAL -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(420px, 1fr));gap:1.5rem;margin-bottom:1.75rem;">
+      
+      <!-- Bloco 1: Estrutura de Despesas por Categoria -->
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:1rem;">
+          <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-main);margin:0;display:flex;align-items:center;gap:0.4rem;">
+            <span>📊</span> Estrutura de Custos & Despesas 2026
+          </h3>
+          <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);background:#f1f5f9;padding:2px 8px;border-radius:12px;">
+            Total: R$ ${totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:1rem;">
+          ${Object.values(catDespesas).map(c => {
+            const pct = totalSaidas > 0 ? Math.round((c.total / totalSaidas) * 100) : 0;
+            return `
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;font-size:0.85rem;">
+                  <span style="font-weight:700;color:var(--text-main);display:flex;align-items:center;gap:0.4rem;">
+                    <span>${c.icon}</span> ${c.label}
+                  </span>
+                  <span style="font-weight:800;color:var(--text-main);">
+                    R$ ${c.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} 
+                    <span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">(${pct}%)</span>
+                  </span>
+                </div>
+                <div style="height:8px;width:100%;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+                  <div style="height:100%;width:${pct}%;background:${c.color};border-radius:4px;transition:width 0.4s ease;"></div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <div style="margin-top:1.25rem;padding-top:0.75rem;border-top:1px dashed var(--border);font-size:0.78rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;">
+          <span>Custo médio por sábado jogado:</span>
+          <strong style="color:var(--text-main);font-size:0.85rem;">R$ ${custoMedioRodada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / rodada</strong>
+        </div>
+      </div>
+
+      <!-- Bloco 2: Comparativo Mensal Entradas vs Saídas -->
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:1rem;">
+          <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-main);margin:0;display:flex;align-items:center;gap:0.4rem;">
+            <span>📈</span> Fluxo Mensal: Entradas vs Saídas
+          </h3>
+          <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.72rem;font-weight:700;">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#10b981;display:inline-block;"></span> Entradas</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#ef4444;display:inline-block;"></span> Saídas</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:0.5rem;max-height:280px;overflow-y:auto;padding-right:4px;">
+          ${monthlyFlow.map(m => {
+            const pctEntrada = Math.round((m.entradas / maxMonthlyValue) * 100);
+            const pctSaida = Math.round((m.saidas / maxMonthlyValue) * 100);
+            const isCur = m.mesNum === currentMonthNum;
+            return `
+              <div style="padding:0.35rem 0.5rem;border-radius:var(--radius-sm);background:${isCur ? '#f0fdf4' : 'transparent'};border:${isCur ? '1px solid #bbf7d0' : 'none'};">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.2rem;font-size:0.8rem;">
+                  <strong style="color:${isCur ? '#15803d' : 'var(--text-main)'};font-size:0.82rem;">
+                    ${m.nome} ${isCur ? '• Atual' : ''}
+                  </strong>
+                  <span style="font-size:0.75rem;font-weight:800;color:${m.saldo >= 0 ? '#15803d' : '#b91c1c'};">
+                    ${m.saldo >= 0 ? '+' : ''}R$ ${m.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                  <div style="height:5px;width:100%;background:#f1f5f9;border-radius:2px;overflow:hidden;">
+                    <div style="height:100%;width:${pctEntrada}%;background:#10b981;border-radius:2px;" title="Entradas: R$ ${m.entradas.toFixed(2)}"></div>
+                  </div>
+                  <div style="height:5px;width:100%;background:#f1f5f9;border-radius:2px;overflow:hidden;">
+                    <div style="height:100%;width:${pctSaida}%;background:#ef4444;border-radius:2px;" title="Saídas: R$ ${m.saidas.toFixed(2)}"></div>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MATRIZ DE ARRECADAÇÃO MÊS A MÊS -->
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.75rem;box-shadow:var(--shadow-sm);">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:1rem;">
+        <div>
+          <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-main);margin:0;display:flex;align-items:center;gap:0.4rem;">
+            <span>🗓️</span> Acompanhamento de Arrecadação Mês a Mês (2026)
+          </h3>
+          <p style="font-size:0.78rem;color:var(--text-muted);margin:0.2rem 0 0 0;">
+            Quadro anual de sócios pagantes, mensalidades quitadas e taxa de adimplência de cada mês.
+          </p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="switchTab('pendencias')">
+          🔍 Matriz Detalhada por Sócio
+        </button>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="data-table" style="width:100%;font-size:0.82rem;text-align:center;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:0.6rem 0.75rem;">Mês</th>
+              <th style="text-align:center;padding:0.6rem 0.75rem;">Sócios Pagos</th>
+              <th style="text-align:center;padding:0.6rem 0.75rem;">Pendentes</th>
+              <th style="text-align:center;padding:0.6rem 0.75rem;">Isentos</th>
+              <th style="text-align:center;padding:0.6rem 0.75rem;">Taxa Adimplência</th>
+              <th style="text-align:right;padding:0.6rem 0.75rem;">Arrecadado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${monthlyDuesStats.map(m => {
+              const totalValidos = m.pagos + m.pendentes;
+              const taxa = totalValidos > 0 ? ((m.pagos / totalValidos) * 100).toFixed(0) : 100;
+              const isPastOrCurrent = m.mesNum <= currentMonthNum;
+              const badgeClass = Number(taxa) >= 85 ? 'badge-green' : (Number(taxa) >= 70 ? 'badge-gold' : 'badge-danger');
+              const isCur = m.mesNum === currentMonthNum;
+              return `
+                <tr style="background:${isCur ? '#f0fdf4' : 'inherit'};">
+                  <td style="text-align:left;font-weight:700;padding:0.5rem 0.75rem;">
+                    ${m.nome} ${isCur ? '<span class="badge badge-green" style="font-size:0.65rem;margin-left:4px;">Atual</span>' : ''}
+                  </td>
+                  <td style="padding:0.5rem 0.75rem;color:#15803d;font-weight:700;">
+                    ${m.pagos}
+                  </td>
+                  <td style="padding:0.5rem 0.75rem;color:${m.pendentes > 0 ? '#b91c1c' : 'var(--text-muted)'};font-weight:${m.pendentes > 0 ? '700' : 'normal'};">
+                    ${m.pendentes}
+                  </td>
+                  <td style="padding:0.5rem 0.75rem;color:var(--text-muted);">
+                    ${m.isentos}
+                  </td>
+                  <td style="padding:0.5rem 0.75rem;">
+                    ${isPastOrCurrent ? `<span class="badge ${badgeClass}" style="font-size:0.75rem;font-weight:800;">${taxa}%</span>` : '<span style="color:var(--text-muted);font-size:0.75rem;">A Vencer</span>'}
+                  </td>
+                  <td style="text-align:right;padding:0.5rem 0.75rem;font-weight:800;color:#15803d;">
+                    R$ ${m.totalRecebido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- BLOCO COMBINADO: FUNDO DISCIPLINAR + OPERAÇÃO DO ELENCO -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:1.5rem;margin-bottom:1.75rem;">
+      
+      <!-- Fundo de Disciplina -->
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:1rem;">
+          <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-main);margin:0;display:flex;align-items:center;gap:0.4rem;">
+            <span>🟨🟥</span> Fundo Disciplinar & Cartões 2026
+          </h3>
+          <span class="badge badge-gold" style="font-size:0.72rem;">Regulamento Interno</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+          <div style="background:#fefce8;border:1px solid #fef08a;border-radius:var(--radius-md);padding:0.75rem;text-align:center;">
+            <div style="font-size:1.4rem;font-weight:900;color:#a16207;">${totalAmarelosGerados}</div>
+            <div style="font-size:0.75rem;font-weight:700;color:#854d0e;">Cartões Amarelos</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);">R$ 5,00 cada</div>
+          </div>
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius-md);padding:0.75rem;text-align:center;">
+            <div style="font-size:1.4rem;font-weight:900;color:#b91c1c;">${totalVermelhosGerados}</div>
+            <div style="font-size:0.75rem;font-weight:700;color:#991b1b;">Cartões Vermelhos</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);">R$ 15,00 cada</div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.75rem;background:#f8fafc;border-radius:var(--radius-sm);border:1px solid #e2e8f0;margin-bottom:0.5rem;font-size:0.85rem;">
+          <span style="color:var(--text-muted);">Total Gerado no Ano:</span>
+          <strong style="color:var(--text-main);font-size:0.95rem;">R$ ${totalMultasGeradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.75rem;background:#f0fdf4;border-radius:var(--radius-sm);border:1px solid #bbf7d0;margin-bottom:0.5rem;font-size:0.85rem;">
+          <span style="color:#15803d;font-weight:700;">Multas Quitadas / No Caixa:</span>
+          <strong style="color:#15803d;font-size:0.95rem;">R$ ${totalMultasQuitadas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.75rem;background:#fef2f2;border-radius:var(--radius-sm);border:1px solid #fecaca;font-size:0.85rem;">
+          <span style="color:#b91c1c;font-weight:700;">Multas Pendentes a Receber:</span>
+          <strong style="color:#b91c1c;font-size:0.95rem;">R$ ${totalCartoesPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+        </div>
+      </div>
+
+      <!-- Operação & Capacidade do Elenco -->
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;box-shadow:var(--shadow-sm);">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:1rem;">
+          <h3 style="font-size:1.05rem;font-weight:800;color:var(--text-main);margin:0;display:flex;align-items:center;gap:0.4rem;">
+            <span>⚽</span> Capacidade Operacional & Quorum
+          </h3>
+          <span class="badge badge-blue" style="font-size:0.72rem;">Temporada 2026</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:0.5rem;margin-bottom:1rem;text-align:center;">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-sm);padding:0.6rem;">
+            <div style="font-size:1.25rem;font-weight:800;color:#0f2b5c;">${sociosPagantesAtivos}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);font-weight:600;">Sócios Pagantes</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-sm);padding:0.6rem;">
+            <div style="font-size:1.25rem;font-weight:800;color:#0f2b5c;">${goleirosIsentosCount}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);font-weight:600;">Goleiros Isentos</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-sm);padding:0.6rem;">
+            <div style="font-size:1.25rem;font-weight:800;color:#dc2626;">${sociosDMCount}</div>
+            <div style="font-size:0.7rem;color:#dc2626;font-weight:600;">No DM / Lesão</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:0.6rem;font-size:0.85rem;">
+          <div style="display:flex;justify-content:space-between;padding:0.5rem 0.6rem;background:#f8fafc;border-radius:var(--radius-sm);">
+            <span style="color:var(--text-muted);">Média de presença aos sábados:</span>
+            <strong style="color:var(--text-main);">${mediaPresenca} jogadores / rodada</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:0.5rem 0.6rem;background:#f8fafc;border-radius:var(--radius-sm);">
+            <span style="color:var(--text-muted);">Quorum ideal para 4 times de 7:</span>
+            <strong style="color:#15803d;">28 jogadores (4 x 7)</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:0.5rem 0.6rem;background:#f8fafc;border-radius:var(--radius-sm);">
+            <span style="color:var(--text-muted);">Custo médio por jogador por sábado:</span>
+            <strong style="color:var(--text-main);">R$ ${custoPorJogadorPorSabado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CENTRAL DE COBRANÇA DA DIRETORIA (INADIMPLÊNCIA EM ABERTO) -->
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;box-shadow:var(--shadow-sm);">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:1rem;flex-wrap:wrap;gap:0.75rem;">
+        <div>
+          <h3 style="font-size:1.15rem;font-weight:800;color:var(--text-main);margin:0;display:flex;align-items:center;gap:0.4rem;">
+            <span>💬</span> Central de Cobrança Amigável & Débitos em Aberto
+          </h3>
+          <p style="font-size:0.78rem;color:var(--text-muted);margin:0.2rem 0 0 0;">
+            Envie mensagem de cobrança pré-formatada via WhatsApp com a chave PIX ou realize a baixa imediata.
+          </p>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-primary btn-sm" onclick="openQuickSettlementCenterModal()" style="font-weight:700;">
+            ⚡ Abrir Central de Baixa Rápida
+          </button>
+        </div>
+      </div>
+
+      ${devedoresList.length === 0 ? `
+        <div style="text-align:center;padding:2.5rem 1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius-md);">
+          <div style="font-size:2.5rem;margin-bottom:0.5rem;">✨</div>
+          <h4 style="font-size:1.15rem;font-weight:800;color:#15803d;margin:0 0 0.25rem 0;">Todos os sócios estão 100% em dia!</h4>
+          <p style="font-size:0.85rem;color:#166534;margin:0;">Não há débitos pendentes de mensalidades ou cartões no momento. Parabéns à Diretoria!</p>
+        </div>
+      ` : `
+        <div style="overflow-x:auto;">
+          <table class="data-table" style="width:100%;font-size:0.82rem;">
+            <thead>
+              <tr>
+                <th style="padding:0.6rem 0.75rem;">Sócio</th>
+                <th style="padding:0.6rem 0.75rem;">Posição</th>
+                <th style="padding:0.6rem 0.75rem;">Meses em Aberto</th>
+                <th style="text-align:right;padding:0.6rem 0.75rem;">Mensalidades</th>
+                <th style="text-align:right;padding:0.6rem 0.75rem;">Multas Cartão</th>
+                <th style="text-align:right;padding:0.6rem 0.75rem;">Total Devido</th>
+                <th style="text-align:center;padding:0.6rem 0.75rem;min-width:180px;">Ações da Diretoria</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${devedoresList.map(d => {
+                return `
+                  <tr>
+                    <td style="padding:0.6rem 0.75rem;">
+                      <div style="display:flex;align-items:center;gap:0.6rem;">
+                        ${renderPlayerAvatarHtml(d.player, 'player-avatar-xs')}
+                        <div>
+                          <strong style="color:var(--text-main);font-size:0.88rem;cursor:pointer;" onclick="openPlayerModal(${d.id})" title="Ver ficha">
+                            ${escapeHtml(d.nome)}
+                          </strong>
+                          ${d.telefone ? `<div style="font-size:0.72rem;color:var(--text-muted);">${escapeHtml(d.telefone)}</div>` : ''}
+                        </div>
+                      </div>
+                    </td>
+                    <td style="padding:0.6rem 0.75rem;color:var(--text-muted);">
+                      ${escapeHtml(d.posicao || 'Sócio')}
+                    </td>
+                    <td style="padding:0.6rem 0.75rem;">
+                      ${d.mesesAbertos.length > 0 ? d.mesesAbertos.map(m => `<span class="badge badge-gold" style="font-size:0.68rem;margin:1px 2px;">${m}</span>`).join('') : '<span style="color:var(--text-muted);font-size:0.75rem;">Nenhum</span>'}
+                    </td>
+                    <td style="text-align:right;padding:0.6rem 0.75rem;color:#b91c1c;font-weight:700;">
+                      ${d.monthlyDebt > 0 ? `R$ ${d.monthlyDebt.toFixed(2)}` : '-'}
+                    </td>
+                    <td style="text-align:right;padding:0.6rem 0.75rem;color:#d97706;font-weight:700;">
+                      ${d.cardDebt > 0 ? `R$ ${d.cardDebt.toFixed(2)}` : '-'}
+                    </td>
+                    <td style="text-align:right;padding:0.6rem 0.75rem;font-weight:900;color:#b91c1c;font-size:0.95rem;">
+                      R$ ${d.totalDebt.toFixed(2)}
+                    </td>
+                    <td style="text-align:center;padding:0.6rem 0.75rem;">
+                      <div style="display:inline-flex;gap:0.35rem;align-items:center;">
+                        <button class="btn btn-whatsapp btn-sm" style="padding:4px 8px;font-size:0.75rem;height:26px;display:inline-flex;align-items:center;gap:3px;" onclick="sendQuickSettleWhatsApp(${d.id})" title="Enviar cobrança detalhada no WhatsApp">
+                          <span>💬</span> Cobrar
+                        </button>
+                        <button class="btn btn-success btn-sm" style="padding:4px 8px;font-size:0.75rem;height:26px;display:inline-flex;align-items:center;gap:3px;" onclick="openQuickSettlementCenterModal(${d.id})" title="Dar baixa rápida nas mensalidades ou cartões">
+                          <span>💳</span> Baixar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `;
 }
 
 function renderCaixa() {
